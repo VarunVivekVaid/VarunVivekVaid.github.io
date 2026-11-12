@@ -138,7 +138,7 @@ function glowTex(blobs) {
 }
 
 // ---------- space ----------
-const sunDir = v3(0.55, 0.25, -0.8).normalize();
+const sunDir = v3(0.85, 0.35, 0.4).normalize();
 const sunPos = sunDir.clone().multiplyScalar(120000);
 const sunLight = new THREE.DirectionalLight(0xfff1dd, 3.2); sunLight.position.copy(sunDir); space.add(sunLight);
 space.add(new THREE.AmbientLight(0x334455, 0.35));
@@ -353,7 +353,7 @@ function lamp(x, y, z, color, intensity, dist) { const l = new THREE.PointLight(
 const amb = new THREE.AmbientLight(0xfff4e6, 0.5); shipScene.add(amb);
 const hemi = new THREE.HemisphereLight(0xfff1dc, 0x554a40, 0.55); shipScene.add(hemi);
 const shipSun = new THREE.DirectionalLight(0xfff1dd, 0.9); shipScene.add(shipSun);
-lamp(0, 2.3, -7.6, 0xffe6c4, 9, 14); lamp(0, 2.3, -1, 0xffe6c4, 6, 10); lamp(-3, 2.3, -1, 0xffd9a8, 5, 9);
+lamp(0, 2.3, -7.6, 0xffe6c4, 6, 14); lamp(0, 2.3, -1, 0xffe6c4, 6, 10); lamp(-3, 2.3, -1, 0xffd9a8, 5, 9);
 lamp(2.5, 2.2, -1, 0xff9ed2, 5, 8); lamp(0, 2.3, 4.5, 0xdfeaff, 5, 8);
 const strips = [];
 function strip(w, d, x, z, m) { const s = box(w, 0.03, d, x, H - 0.015, z, m || M.strip); strips.push(s); return s; }
@@ -367,12 +367,12 @@ function screen(w, h, x, y, z, cw, ch) {
   const c = document.createElement('canvas'); c.width = cw; c.height = ch;
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
   const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: t, toneMapped: false }));
-  m.position.set(x, y, z); m.rotation.x = -1.0; ship.add(m);
+  m.position.set(x, y, z); m.rotation.x = -1.2; ship.add(m);
   return { g: c.getContext('2d'), t: t, w: cw, h: ch };
 }
-const scrNav = screen(0.9, 0.9, 0, 1.03, -10.12, 256, 256);
-const scrStat = screen(1.1, 0.6, -1.25, 0.98, -10.1, 384, 208);
-const scrSys = screen(1.1, 0.6, 1.25, 0.98, -10.1, 384, 208);
+const scrNav = screen(0.7, 0.7, 0, 0.99, -10.12, 256, 256);
+const scrStat = screen(1.0, 0.54, -1.1, 0.96, -10.1, 384, 208);
+const scrSys = screen(1.0, 0.54, 1.1, 0.96, -10.1, 384, 208);
 cyl(0.08, 0.45, 0, 0.225, -8.7, M.brass); box(0.62, 0.1, 0.62, 0, 0.5, -8.7, M.fabric); box(0.62, 0.85, 0.1, 0, 0.95, -8.38, M.fabric);
 box(0.08, 0.05, 0.5, -0.36, 0.72, -8.7, M.wood); box(0.08, 0.05, 0.5, 0.36, 0.72, -8.7, M.wood);
 const lever = box(0.04, 0.22, 0.04, 0.36, 0.84, -8.85, M.brass);
@@ -486,8 +486,8 @@ function setMode(m) {
   mode = m; $('vig').style.opacity = m === 'eva' ? 1 : 0; tether.visible = m === 'eva';
   const pil = document.querySelectorAll('.pil'); for (const b of pil) b.style.display = m === 'pilot' && isTouch ? 'block' : 'none';
 }
-function sit() { setMode('pilot'); P.set(0, 1.35, -8.72); yaw = 0; pitch = 0; say('You have the helm.'); }
-function lie() { setMode('bunk'); P.set(-4.4, 0.95, -2.3); yaw = Math.PI / 2; pitch = 0.28; }
+function sit() { setMode('pilot'); P.set(0, 1.5, -8.6); yaw = 0; pitch = 0; say('You have the helm.'); }
+function lie() { setMode('bunk'); P.set(-4.2, 0.95, -1.9); yaw = Math.PI / 2; pitch = 0.6; }
 function stand() {
   if (mode === 'pilot') { P.set(0, 1.35, -7.6); } else if (mode === 'bunk') { P.set(-3.4, 1.0, -1.6); yaw = -Math.PI / 2; pitch = 0; }
   setMode('walk');
@@ -730,7 +730,7 @@ window.game = {
   P: P, sit: sit, lie: lie, stand: stand, toggleGrav: toggleGrav, toggleLights: toggleLights, cycleAirlock: cycleAirlock, jump: jump, keys: keys,
   look: function (y, p) { yaw = y; pitch = p; }, go: function (x, y, z) { P.set(x, y, z); },
   state: function () { return { mode: mode, grav: grav, air: air, speed: speed, throttle: throttle, pos: [P.x, P.y, P.z], ship: [shipPos.x, shipPos.y, shipPos.z], dOut: dOut.open, dIn: dIn.open }; },
-  setThrottle: function (t) { throttle = t; }, start: function () { $('start').click(); }
+  setThrottle: function (t) { throttle = t; }, tick: function (dt, n) { for (let i = 0; i < (n || 1); i++) update(dt); }, start: function () { $('start').click(); }
 };
 </script>
 </body>
