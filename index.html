@@ -33,6 +33,8 @@ canvas{display:block}
 .bar{height:5px;margin:.25rem 0 .55rem;background:rgba(255,255,255,.14);border-radius:3px;overflow:hidden}
 .bar i{display:block;height:100%;width:100%;background:#7fd6ff;border-radius:3px}
 #bh{background:#ffb347}
+#fishui{position:absolute;left:50%;bottom:27%;transform:translateX(-50%);width:min(70vw,20rem);display:none;text-align:center;font-size:.7rem;letter-spacing:.12em;text-transform:uppercase;color:#f2eee7;text-shadow:0 1px 6px #000}
+#fishui .bar{height:9px;margin:.4rem 0}
 #boss{position:absolute;left:50%;top:1rem;transform:translateX(-50%);width:min(56vw,26rem);display:none;text-align:center;font-size:.68rem;letter-spacing:.3em;text-transform:uppercase;color:#ff8a70}
 #bb{background:#ff5a48}
 #tgt{position:absolute;display:none;transform:translate(-50%,-50%);padding:1.6rem .8rem .2rem;border:1px solid rgba(143,255,240,.7);border-radius:4px;font-size:.62rem;letter-spacing:.1em;text-transform:uppercase;color:#8ffff0;white-space:nowrap;text-shadow:0 1px 4px #000}
@@ -50,6 +52,7 @@ canvas{display:block}
   <div id="bars">Shields<div class="bar"><i id="bs"></i></div>Hull<div class="bar"><i id="bh"></i></div></div>
   <div id="boss">Ozymandias<div class="bar"><i id="bb"></i></div></div>
   <div id="tgt"></div>
+  <div id="fishui"><span id="fname"></span><div class="bar"><i id="ften"></i></div><span id="fdist"></span></div>
   <div id="flash"></div>
 </div>
 <div id="touch">
@@ -509,7 +512,7 @@ function setMode(m) {
 function sit() { setMode('pilot'); P.set(0, 1.5, -8.6); yaw = 0; pitch = 0; say('You have the helm.'); }
 function lie() { setMode('bunk'); P.set(-4.2, 0.95, -1.9); yaw = Math.PI / 2; pitch = 0.6; }
 function stand() {
-  if (mode === 'pilot') { P.set(0, 1.35, -7.6); } else if (mode === 'bunk') { P.set(-3.4, 1.0, -1.6); yaw = -Math.PI / 2; pitch = 0; }
+  if (mode === 'pilot') { P.set(0, 1.35, -7.6); throttle = 0; } else if (mode === 'bunk') { P.set(-3.4, 1.0, -1.6); yaw = -Math.PI / 2; pitch = 0; }
   setMode('walk');
 }
 function toggleLights() { cabin = !cabin; beep(520, 0.02); say(cabin ? 'Cabin lights on.' : 'Cabin lights dimmed.'); }
@@ -783,15 +786,38 @@ const liScr = panel(0.46, 0.3, 368, 240, function (g, w, h) {
   g.fillStyle = '#0a66c2'; g.fillRect(28, 190, 120, 24); g.fillStyle = '#ffffff'; g.font = '600 12px sans-serif'; g.fillText('View profile', 52, 206);
 });
 liScr.m.position.set(-2.85, 1.0, 0.782); liScr.m.rotation.y = Math.PI;
-box(0.03, 0.78, 0.62, -0.885, 1.5, 1.6, M.dark);
-const igScr = panel(0.56, 0.72, 280, 360, function (g, w, h) {
-  g.fillStyle = '#111114'; g.fillRect(0, 0, w, h); g.fillStyle = '#f2eee7'; g.font = '600 20px sans-serif'; g.fillText('@varunvivekvaid', 18, 36);
-  g.fillStyle = '#8a8f98'; g.font = '12px sans-serif'; g.fillText('instagram.com/varunvivekvaid', 18, 56);
-  const pal = ['#f58529', '#dd2a7b', '#8134af', '#515bd4', '#feda77', '#2f8f9f', '#c7683a', '#7a4fd6', '#d65a8a'];
-  for (let i = 0; i < 9; i++) { const x = 18 + (i % 3) * 84, y = 76 + Math.floor(i / 3) * 84; const gr = g.createLinearGradient(x, y, x + 78, y + 78); gr.addColorStop(0, pal[i]); gr.addColorStop(1, pal[(i + 4) % 9]); g.fillStyle = gr; g.fillRect(x, y, 78, 78); }
-  g.fillStyle = '#f2eee7'; g.font = '13px sans-serif'; g.fillText('Open profile', 18, 346);
+// ---- Instagram hologram ----
+const holo = new THREE.Group(); holo.position.set(0.45, 0, -3.2); ship.add(holo);
+box(0.02, 2.3, 1.5, 0.889, 1.25, -3.2, M.dark); box(0.025, 0.03, 1.5, 0.886, 2.41, -3.2, M.brass); box(0.025, 0.03, 1.5, 0.886, 0.11, -3.2, M.brass);
+const holoCard = panel(0.62, 0.79, 300, 384, function (g, w, h) {
+  g.clearRect(0, 0, w, h); g.fillStyle = 'rgba(24,10,44,0.62)'; g.fillRect(0, 0, w, h);
+  const gr = g.createLinearGradient(0, 0, w, h); gr.addColorStop(0, '#feda75'); gr.addColorStop(0.35, '#fa7e1e'); gr.addColorStop(0.6, '#d62976'); gr.addColorStop(0.8, '#962fbf'); gr.addColorStop(1, '#4f5bd5');
+  g.strokeStyle = gr; g.lineWidth = 6; g.strokeRect(5, 5, w - 10, h - 10);
+  g.lineWidth = 7; g.beginPath(); g.arc(w / 2, 86, 46, 0, 6.2832); g.stroke(); g.fillStyle = '#ffffff'; g.font = '600 34px sans-serif'; g.textAlign = 'center'; g.fillText('VV', w / 2, 98);
+  g.font = '600 25px sans-serif'; g.fillText('@varunvivekvaid', w / 2, 176);
+  for (let i = 0; i < 6; i++) { g.fillStyle = gr; g.globalAlpha = 0.55 + (i % 3) * 0.15; g.fillRect(36 + (i % 3) * 78, 200 + Math.floor(i / 3) * 62, 70, 54); }
+  g.globalAlpha = 1; g.fillStyle = gr; g.fillRect(60, 334, w - 120, 34); g.fillStyle = '#ffffff'; g.font = '600 17px sans-serif'; g.fillText('Open Instagram', w / 2, 357);
 });
-igScr.m.position.set(-0.868, 1.5, 1.6); igScr.m.rotation.y = Math.PI / 2;
+holoCard.m.material.transparent = true; holoCard.m.material.side = THREE.DoubleSide; holoCard.m.material.depthWrite = false; holo.add(holoCard.m); holoCard.m.position.set(0, 1.42, 0);
+const holoTiles = [], holoRings = [];
+const holoPts = (function () {
+  const add = function (geo, mat, y) { const m = new THREE.Mesh(geo, mat); m.position.y = y; holo.add(m); return m; };
+  add(new THREE.CylinderGeometry(0.3, 0.34, 0.06, 32), M.dark, 0.03); add(new THREE.CylinderGeometry(0.34, 0.3, 0.06, 32), M.dark, H - 0.03);
+  add(new THREE.TorusGeometry(0.31, 0.012, 8, 40), M.brass, 0.066).rotation.x = Math.PI / 2; add(new THREE.TorusGeometry(0.31, 0.012, 8, 40), M.brass, H - 0.066).rotation.x = Math.PI / 2;
+  add(new THREE.CylinderGeometry(0.07, 0.3, H - 0.12, 28, 1, true), new THREE.MeshBasicMaterial({ color: 0xff5fa8, transparent: true, opacity: 0.06, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }), H / 2);
+  for (let i = 0; i < 9; i++) holoTiles.push(add(new THREE.PlaneGeometry(0.15, 0.15), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9, depthWrite: false, side: THREE.DoubleSide }), 1));
+  for (let i = 0; i < 2; i++) holoRings.push(add(new THREE.TorusGeometry(0.5, 0.005, 6, 72), new THREE.MeshBasicMaterial({ color: 0xff7ab8, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false }), 1.42));
+  const n = 80, pos = new Float32Array(n * 3); for (let i = 0; i < n; i++) { const a = R() * 6.2832, r = Math.sqrt(R()) * 0.3; pos[i * 3] = Math.cos(a) * r; pos[i * 3 + 1] = R() * H; pos[i * 3 + 2] = Math.sin(a) * r; }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const p = new THREE.Points(g, new THREE.PointsMaterial({ color: 0xffc0e6, size: 0.014, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false })); holo.add(p); return p;
+})();
+function holoStep(dt) {
+  const near = clamp(1.6 - Math.hypot(P.x - 0.45, P.z + 3.2) * 0.5, 0, 1);
+  holoCard.m.rotation.y = Math.atan2(P.x - 0.45, P.z + 3.2); holoCard.m.position.y = 1.42 + Math.sin(time * 1.3) * 0.03; holoCard.m.material.opacity = 0.86 + Math.sin(time * 23) * 0.04;
+  for (let i = 0; i < holoTiles.length; i++) { const t = holoTiles[i], a = time * 0.6 + i * 0.698, r = 0.42 + near * 0.1; t.position.set(Math.cos(a) * r, 0.75 + i * 0.15 + Math.sin(time * 1.1 + i) * 0.04, Math.sin(a) * r); t.rotation.y = Math.PI / 2 - a; t.material.color.setHSL((time * 0.05 + i / 9) % 1, 0.9, 0.6); }
+  holoRings[0].rotation.set(Math.PI / 2 + Math.sin(time * 0.7) * 0.5, time * 0.5, 0); holoRings[1].rotation.set(Math.PI / 2 + Math.cos(time * 0.6) * 0.5, -time * 0.4, 0); holoRings[1].material.color.setHSL((time * 0.07) % 1, 0.9, 0.65);
+  const pa = holoPts.geometry.attributes.position; for (let i = 0; i < pa.count; i++) { let y = pa.getY(i) + dt * (0.15 + (i % 5) * 0.05); if (y > H) y = 0; pa.setY(i, y); } pa.needsUpdate = true;
+}
 const catches = [];
 const catchBoard = panel(0.6, 0.8, 240, 320, function () {}); catchBoard.m.position.set(1.385, 1.45, 5.3); catchBoard.m.rotation.y = -Math.PI / 2;
 function drawCatch() {
@@ -805,59 +831,215 @@ function drawCatch() {
 drawCatch();
 acts.push(
   { p: v3(-2.85, 1.0, 0.7), r: 1.7, label: 'Open LinkedIn', fn: function () { openLink(LINKS.linkedin); } },
-  { p: v3(-0.87, 1.5, 1.6), r: 1.5, label: 'Open Instagram @varunvivekvaid', fn: function () { openLink(LINKS.instagram); } });
+  { p: v3(0.45, 1.4, -3.2), r: 1.9, label: 'Open Instagram @varunvivekvaid', fn: function () { openLink(LINKS.instagram); } });
 
-// ---- space fish (live in the ship's wake) ----
-const fishes = [];
-const FISH = [['Void Koi', 0x59e0c8, 2.2], ['Comet Carp', 0xffb86b, 3], ['Glass Eel', 0x9fd0ff, 1.6], ['Nebula Ray', 0xc48bff, 4.5], ['Star Sturgeon', 0x7fe0a0, 6], ['Lantern Whale', 0xffe9a8, 11]];
-for (let i = 0; i < FISH.length; i++) {
-  const s = FISH[i][2], g = new THREE.Group();
-  const mat = new THREE.MeshStandardMaterial({ color: FISH[i][1], emissive: FISH[i][1], emissiveIntensity: 0.55, roughness: 0.5, transparent: true, opacity: 0.92 });
-  const body = new THREE.Mesh(new THREE.SphereGeometry(1, 18, 12), mat); body.scale.set(0.45 * s, 0.62 * s, 2 * s); g.add(body);
-  const tail = new THREE.Group(); tail.position.z = -1.8 * s;
-  const tf = new THREE.Mesh(new THREE.ConeGeometry(0.9 * s, 1.5 * s, 4), mat); tf.rotation.x = Math.PI / 2; tf.scale.set(0.12, 1, 1); tf.position.z = -0.6 * s; tail.add(tf); g.add(tail);
-  const fin = new THREE.Mesh(new THREE.ConeGeometry(0.4 * s, 0.9 * s, 4), mat); fin.scale.set(0.15, 1, 1); fin.position.set(0, 0.8 * s, 0.1 * s); g.add(fin);
-  for (const e of [-1, 1]) { const eye = new THREE.Mesh(new THREE.SphereGeometry(0.07 * s, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffffff })); eye.position.set(e * 0.3 * s, 0.15 * s, 1.5 * s); g.add(eye); }
-  const f = { g: g, tail: tail, name: FISH[i][0], s: s, r: 45 + i * 28 + R() * 18, h: (R() - 0.5) * 50, sp: (0.05 + R() * 0.05) * (i % 2 ? 1 : -1), ph: R() * 6.28, pos: v3(0, 0, 0), dir: v3(0, 0, 1), state: 'free' };
-  f.pos.set(Math.cos(f.ph) * f.r, 1 + f.h, -3 + Math.sin(f.ph) * f.r); ship.add(g); fishes.push(f);
+// ---- space fish (free-swimming in world space) ----
+shipScene.add(cam);
+function rgb(hex) { const c = new THREE.Color(hex); return [c.r, c.g, c.b]; }
+function mixc(a, b, t) { t = clamp(t, 0, 1); return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]; }
+function mergeGeo(parts) {
+  let n = 0; for (const p of parts) { if (p.g.index) p.g = p.g.toNonIndexed(); n += p.g.attributes.position.count; }
+  const pos = new Float32Array(n * 3), nor = new Float32Array(n * 3), col = new Float32Array(n * 3), glo = new Float32Array(n); let o = 0;
+  for (const p of parts) {
+    const a = p.g.attributes.position, b = p.g.attributes.normal;
+    for (let i = 0; i < a.count; i++, o++) {
+      const x = a.getX(i), y = a.getY(i), z = a.getZ(i); pos[o * 3] = x; pos[o * 3 + 1] = y; pos[o * 3 + 2] = z;
+      nor[o * 3] = b.getX(i); nor[o * 3 + 1] = b.getY(i); nor[o * 3 + 2] = b.getZ(i);
+      const c = typeof p.col === 'function' ? p.col(x, y, z) : p.col; col[o * 3] = c[0]; col[o * 3 + 1] = c[1]; col[o * 3 + 2] = c[2]; glo[o] = p.glow || 0;
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3)); g.setAttribute('glow', new THREE.BufferAttribute(glo, 1));
+  return g;
 }
-const fsh = { st: 'idle', lure: v3(0, 0, 0), vel: v3(0, 0, 0), t: 0, fish: null, prog: 0, from: v3(0, 0, 0) };
-const lureM = new THREE.Mesh(new THREE.SphereGeometry(0.12, 10, 8), new THREE.MeshBasicMaterial({ color: 0xffe9a8 })); lureM.visible = false; ship.add(lureM);
-const lineGeo = new THREE.BufferGeometry(); lineGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3));
-const fLine = new THREE.Line(lineGeo, new THREE.LineBasicMaterial({ color: 0xd8f6ff, transparent: true, opacity: 0.7 })); fLine.frustumCulled = false; fLine.visible = false; ship.add(fLine);
-function stopFishing() { if (fsh.fish) fsh.fish.state = 'free'; fsh.fish = null; fsh.st = 'idle'; lureM.visible = false; fLine.visible = false; }
-function castLine() { fsh.st = 'cast'; fsh.t = 1.5; fsh.lure.copy(P).addScaledVector(fwdV, 0.6); fsh.vel.copy(fwdV).multiplyScalar(24); lureM.visible = true; fLine.visible = true; whoosh(0.05); }
-function hookFish() { fsh.st = 'reel'; fsh.prog = 0.08; fsh.from.copy(fsh.lure); beep(660, 0.03); }
-const fishActs = { idle: { label: 'Cast line', fn: castLine }, cast: { label: 'Reel in', fn: stopFishing }, wait: { label: 'Reel in', fn: stopFishing }, bite: { label: 'Hook it!', fn: hookFish }, reel: { label: '', fn: function () {} } };
-function fishAct() { const a = fishActs[fsh.st]; if (fsh.st === 'reel') a.label = 'Hold to reel  ' + Math.round(fsh.prog * 100) + '%'; return a; }
+function finGeo(pts, sx, sy) {
+  const s = new THREE.Shape(); s.moveTo(pts[0][0] * sx, pts[0][1] * sy); for (let i = 1; i < pts.length; i++) s.lineTo(pts[i][0] * sx, pts[i][1] * sy);
+  const g = new THREE.ShapeGeometry(s); g.rotateY(Math.PI / 2); return g;
+}
+function buildFish(o) {
+  const L = o.L, R0 = L * o.h * 0.5, ws = o.w / o.h, back = rgb(o.back), belly = rgb(o.belly), gc = rgb(o.glowc), parts = [];
+  const rAt = function (t) { return Math.max(Math.pow(Math.sin(Math.PI * Math.pow(t, 0.55)), 0.8), t > 0.6 ? 0.08 : 0); };
+  const pts = []; for (let i = 0; i <= 24; i++) { const t = 1 - i / 24; pts.push(new THREE.Vector2(rAt(t) * R0 + 0.0005, (0.5 - t) * L)); }
+  const body = new THREE.LatheGeometry(pts, 20); body.rotateX(Math.PI / 2); body.scale(ws, 1, 1);
+  parts.push({ g: body, col: function (x, y, z) {
+    let c = mixc(belly, back, (y / R0) * 0.9 + 0.55);
+    if (o.pat === 1) { if (fbm(x * 0.9 + 7, y * 0.9, z * 0.7, 3) > 0.52) c = mixc(c, [1, 0.96, 0.9], 0.9); if (vnoise(x * 1.7, y * 1.7 + 4, z * 1.1) > 0.76) c = [0.03, 0.03, 0.04]; }
+    else if (o.pat === 2) c = mixc(c, [0.9, 0.95, 0.9], Math.pow(Math.abs(Math.sin(z * 2.2)), 8) * 0.6);
+    else if (o.pat === 3) { if (y > 0 && vnoise(x * 1.3, 2, z * 1.3) > 0.7) c = mixc(c, gc, 0.8); }
+    return c;
+  } });
+  const zt = -L / 2, finC = mixc(back, gc, 0.35);
+  if (o.kind !== 2) {
+    const cf = finGeo([[0, 0.06], [0.6, 0.8], [0.45, 0], [0.6, -0.8], [0, -0.06]], L * o.tail, L * o.tail); if (o.kind === 1) cf.rotateZ(Math.PI / 2); cf.translate(0, 0, zt + L * 0.04); parts.push({ g: cf, col: finC, glow: 0.25 });
+    const df = finGeo([[0, 0], [0.3, 1], [0.8, 0.7], [1, 0]], L * 0.3, L * o.dorsal); df.translate(0, R0 * 0.9, L * 0.14); parts.push({ g: df, col: finC, glow: 0.15 });
+    const af = finGeo([[0, 0], [0.45, -1], [1, 0]], L * 0.15, L * o.dorsal * 0.7); af.translate(0, -R0 * 0.75, -L * 0.14); parts.push({ g: af, col: finC, glow: 0.15 });
+    const ps = L * (o.kind === 1 ? 0.3 : 0.2);
+    for (const s of [-1, 1]) { const pf = finGeo([[0, 0], [0.5, 0.28], [1, -0.1], [0.45, -0.3]], ps, ps); pf.rotateZ(s * 1.15); pf.translate(s * ws * R0 * 0.8, -R0 * 0.3, L * 0.2); parts.push({ g: pf, col: finC, glow: 0.15 }); }
+  } else {
+    const tl = new THREE.ConeGeometry(L * 0.025, L * 0.9, 6); tl.rotateX(-Math.PI / 2); tl.translate(0, 0, zt - L * 0.4); parts.push({ g: tl, col: back, glow: 0.1 });
+  }
+  const ez = L * 0.37, ex = o.kind === 2 ? L * 0.09 : rAt(0.13) * R0 * ws * 0.9, ey = o.kind === 2 ? R0 * 0.75 : R0 * 0.3 * rAt(0.13), er = Math.min(L * 0.02, R0 * 0.5);
+  for (const s of [-1, 1]) {
+    const e = new THREE.SphereGeometry(er, 10, 8); e.translate(s * ex, ey, ez); parts.push({ g: e, col: [1, 1, 1], glow: 0.5 });
+    const p = new THREE.SphereGeometry(er * 0.55, 8, 6); p.translate(s * (ex + er * 0.6), ey, ez + er * 0.3); parts.push({ g: p, col: [0.02, 0.02, 0.03] });
+    for (let i = 0; i < 8; i++) {
+      const t = 0.22 + i * 0.085, sp = new THREE.SphereGeometry(Math.max(L * 0.012, 0.05), 6, 5);
+      if (o.kind === 2) sp.translate(s * L * 0.07 * (i + 1), R0 * 0.35, L * 0.05); else sp.translate(s * rAt(t) * R0 * ws, 0, (0.5 - t) * L);
+      parts.push({ g: sp, col: gc, glow: 1 });
+    }
+  }
+  return mergeGeo(parts);
+}
+function fishMat(o) {
+  const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.45, metalness: 0.1, side: THREE.DoubleSide, emissive: o.glowc, emissiveIntensity: 0.1 });
+  m.userData.uP = { value: new THREE.Vector4(R() * 6, o.L * (o.kind === 1 ? 0.03 : o.kind === 2 ? 0.07 : 0.055), o.L, o.kind) };
+  m.onBeforeCompile = function (sh) {
+    sh.uniforms.uP = m.userData.uP;
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float glow;\nvarying float vGlow;\nuniform vec4 uP;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvGlow = glow;\nfloat fs = clamp(0.5 - position.z / uP.z, 0.0, 1.0);\nfloat fw = sin(uP.x - fs * 5.0) * uP.y;\nif (uP.w < 0.5) transformed.x += fw * (0.12 + fs * fs);\nelse if (uP.w < 1.5) transformed.y += fw * (0.12 + fs * fs);\nelse transformed.y += sin(uP.x - abs(position.x) / uP.z * 5.0) * uP.y * abs(position.x) / uP.z * 2.2;');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vGlow;')
+      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += vColor.rgb * vGlow * 1.8;');
+  };
+  m.customProgramCacheKey = function () { return 'spacefish'; };
+  return m;
+}
+const SPECIES = [
+  { name: 'Void Koi', L: 5.5, w: 0.2, h: 0.3, back: 0xf26a1b, belly: 0xfff4e6, glowc: 0xffa040, tail: 0.3, dorsal: 0.12, kind: 0, pat: 1, sp: 7, school: 3 },
+  { name: 'Glass Eel', L: 15, w: 0.035, h: 0.05, back: 0x7fd0ff, belly: 0xe8fbff, glowc: 0x9fe8ff, tail: 0.05, dorsal: 0.02, kind: 0, pat: 0, sp: 9, school: 1 },
+  { name: 'Star Sturgeon', L: 11, w: 0.13, h: 0.17, back: 0x2f4b5c, belly: 0xcfe0d8, glowc: 0x7fe0a0, tail: 0.24, dorsal: 0.08, kind: 0, pat: 2, sp: 6, school: 1 },
+  { name: 'Nebula Ray', L: 8, w: 1.25, h: 0.14, back: 0x5a2f8f, belly: 0xe2c8ff, glowc: 0xc48bff, tail: 0, dorsal: 0, kind: 2, pat: 3, sp: 5, school: 2 },
+  { name: 'Lantern Whale', L: 42, w: 0.2, h: 0.24, back: 0x1f3550, belly: 0xbfd4e6, glowc: 0xffe9a8, tail: 0.3, dorsal: 0.03, kind: 1, pat: 0, sp: 4, school: 1 }];
+const fishes = [];
+(function () {
+  const cnt = [5, 2, 3, 3, 1];
+  for (let si = 0; si < SPECIES.length; si++) {
+    const o = SPECIES[si], geo = buildFish(o);
+    for (let k = 0; k < cnt[si]; k++) {
+      const mat = fishMat(o), m = new THREE.Mesh(geo, mat); m.visible = false; m.frustumCulled = false; ship.add(m);
+      fishes.push({ o: o, m: m, uP: mat.userData.uP.value, on: false, wp: v3(0, 0, 0), dir: v3(0, 0, 1), tgt: v3(0, 0, 0), home: v3(0, 0, 0), lp: v3(0, 0, 0), t: 0, k: 0, sz: 1, state: 'free' });
+    }
+  }
+})();
+function spawnFish(near) {
+  const w = [5, 2, 3, 3, 0.7]; let r = R() * 13.7, si = 0; while (si < 4 && r > w[si]) { r -= w[si]; si++; }
+  const o = SPECIES[si]; let n = o.school, c = null;
+  for (const f of fishes) {
+    if (f.on || f.o !== o) continue;
+    if (!c) c = rndDir(v3(0, 0, 0)).multiplyScalar(near ? 70 + R() * 230 : 230 + R() * 240).add(shipPos);
+    f.on = true; f.state = 'free'; f.k = near ? 1 : 0; f.sz = 0.8 + R() * 0.45; rndDir(f.home).multiplyScalar(50 + R() * 110).add(shipPos); rndDir(f.wp).multiplyScalar(o.L * 1.5 * (o.school - n)).add(c); rndDir(f.dir); f.t = 0; f.m.visible = true;
+    if (--n <= 0) break;
+  }
+}
+for (let i = 0; i < 6; i++) spawnFish(true);
+const fsh = { st: 'idle', lure: v3(0, 0, 0), v: v3(0, 0, 0), t: 0, fish: null, aim: null, aimF: null, dist: 0, ten: 0, stam: 0, bt: 0, burst: 0, over: 0, tired: false, prog: 0, fd: v3(0, 0, 1), wd: v3(0, 0, 1), click: 0 };
+const bestFish = {};
+const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.018, 1.3, 6), M.brass); rod.position.set(0.3, -0.32, -0.7); rod.rotation.x = -1.3; rod.visible = false; cam.add(rod);
+const rodTip = new THREE.Object3D(); rodTip.position.y = 0.65; rod.add(rodTip);
+const lureM = new THREE.Mesh(new THREE.SphereGeometry(0.1, 10, 8), new THREE.MeshBasicMaterial({ color: 0xfff0b0 })); lureM.visible = false; ship.add(lureM);
+const lureGl = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex(1), color: 0xffe08a, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false })); lureGl.scale.set(1.2, 1.2, 1); lureM.add(lureGl);
+const lineG = new THREE.CylinderGeometry(0.012, 0.012, 1, 5); lineG.rotateX(Math.PI / 2); lineG.translate(0, 0, 0.5);
+const lineM = new THREE.Mesh(lineG, new THREE.MeshBasicMaterial({ color: 0xd8f6ff })); lineM.visible = false; lineM.frustumCulled = false; ship.add(lineM);
+function stopFishing() { const f = fsh.fish; if (f) { f.state = 'free'; f.home.copy(f.wp); f.t = 0; } fsh.fish = null; fsh.aimF = null; fsh.st = 'idle'; lureM.visible = false; lineM.visible = false; $('fishui').style.display = 'none'; }
+function castLine() {
+  if (speed > 6 || tj || warpT > 0) { say('Stop the ship first. Fish scatter from a moving hull.'); return; }
+  cam.updateMatrixWorld(true); rodTip.getWorldPosition(fsh.lure); fsh.v.copy(fwdV).multiplyScalar(75); fsh.t = 1.5; fsh.st = 'cast'; fsh.aimF = fsh.aim; lureM.visible = true; lineM.visible = true; lineM.material.color.setHex(0xd8f6ff); whoosh(0.07);
+}
+function hookFish(f) {
+  if (fsh.fish && fsh.fish !== f) fsh.fish.state = 'free';
+  fsh.fish = f; f.state = 'hooked'; fsh.st = 'fight'; fsh.fd.copy(f.lp).sub(P); fsh.dist = Math.max(10, fsh.fd.length()); fsh.fd.normalize(); fsh.wd.copy(fsh.fd);
+  fsh.ten = 0.3; fsh.stam = 4 + f.o.L * f.sz * 0.33; fsh.bt = 2.6; fsh.burst = 0; fsh.over = 0; fsh.tired = false;
+  $('fishui').style.display = 'block'; $('fname').textContent = f.o.name;
+  say('Fish on! Hold to reel. Ease off when the line turns red.'); beep(880, 0.03);
+}
+function lineSnap(msg) { say(msg); beep(140, 0.04); stopFishing(); }
+const fa = { label: '', fn: null }, noopF = function () {};
+function fishAct() {
+  if (fsh.st === 'idle') { fa.label = fsh.aim ? 'Cast at ' + fsh.aim.o.name : 'Cast line'; fa.fn = castLine; }
+  else if (fsh.st === 'cast') { fa.label = 'Line out'; fa.fn = noopF; }
+  else if (fsh.st === 'float') { fa.label = 'Reel in'; fa.fn = stopFishing; }
+  else { fa.label = fsh.tired ? 'Hold to reel it in' : 'Hold to reel'; fa.fn = noopF; }
+  return fa;
+}
 function fishingStep(dt) {
+  rod.visible = mode === 'eva';
   if (mode !== 'eva') { if (fsh.st !== 'idle') stopFishing(); return; }
-  if (fsh.st === 'idle') return;
+  if (fsh.st === 'idle') {
+    fsh.aim = null; let bd = 1e9;
+    for (const f of fishes) {
+      if (!f.on || !f.m.visible) continue; tC.copy(f.lp).sub(P); const d = tC.length(); if (d > 150 || d < 2) continue;
+      const ang = Math.acos(clamp(tC.dot(fwdV) / d, -1, 1)); if (ang < Math.atan((f.sz * f.o.L * 0.4 + 3) / d) + 0.035 && d < bd) { bd = d; fsh.aim = f; }
+    }
+    return;
+  }
+  const reel = keys.KeyE || (mouseDown && !isTouch);
   if (fsh.st === 'cast') {
-    fsh.lure.addScaledVector(fsh.vel, dt); fsh.vel.multiplyScalar(Math.exp(-0.7 * dt)); fsh.t -= dt;
-    if (fsh.t <= 0) { fsh.st = 'wait'; fsh.t = 1.5 + R() * 3; let best = null, bd = 1e9; for (const f of fishes) { const d = f.pos.distanceTo(fsh.lure); if (d < bd) { bd = d; best = f; } } fsh.fish = best; best.state = 'lured'; }
-  } else if (fsh.st === 'wait') {
-    fsh.t -= dt; const f = fsh.fish;
-    if (fsh.t <= 0 && f.pos.distanceTo(fsh.lure) < 1.2 + f.s * 2) { fsh.st = 'bite'; fsh.t = 2.2; say('A bite! Hook it.'); beep(880, 0.03); }
-  } else if (fsh.st === 'bite') {
-    fsh.t -= dt; fsh.lure.x += Math.sin(time * 30) * 0.03; if (fsh.t <= 0) { say('It got away.'); stopFishing(); }
-  } else if (fsh.st === 'reel') {
-    const f = fsh.fish; f.state = 'reel'; fsh.prog = Math.max(0, fsh.prog + (keys.KeyE ? 0.4 : -0.1) * dt);
-    tC.copy(P).addScaledVector(fwdV, 3.5 + f.s * 2.2); f.pos.lerpVectors(fsh.from, tC, Math.min(fsh.prog, 1)); f.pos.x += Math.sin(time * 9) * 0.05 * f.s; fsh.lure.copy(f.pos);
-    if (fsh.prog >= 1) { const len = (f.s * 4.2 * (0.85 + R() * 0.3)).toFixed(1); catches.push([f.name, len]); drawCatch(); say('Caught: ' + f.name + ', ' + len + ' m. Released back to the dark.'); beep(990, 0.03); stopFishing(); }
+    const a = fsh.aimF; if (a && a.on) { tC.copy(a.lp).sub(fsh.lure).normalize().multiplyScalar(75); fsh.v.lerp(tC, Math.min(1, dt * 7)); }
+    fsh.lure.addScaledVector(fsh.v, dt); fsh.t -= dt;
+    for (const f of fishes) if (f.on && f.lp.distanceTo(fsh.lure) < 1.5 + f.sz * f.o.L * 0.3) { hookFish(f); break; }
+    if (fsh.st === 'cast' && fsh.t <= 0) { fsh.st = 'float'; fsh.t = 10; }
+  } else if (fsh.st === 'float') {
+    fsh.t -= dt; fsh.lure.y += Math.sin(time * 2.5) * 0.004;
+    if (!fsh.fish) { let bd = 120, bf = null; for (const f of fishes) if (f.on && f.state === 'free') { const d = f.lp.distanceTo(fsh.lure); if (d < bd) { bd = d; bf = f; } } if (bf) { bf.state = 'lured'; fsh.fish = bf; } }
+    else if (fsh.fish.lp.distanceTo(fsh.lure) < 2 + fsh.fish.sz * fsh.fish.o.L * 0.3) hookFish(fsh.fish);
+    if (fsh.st === 'float' && fsh.t <= 0) { say('Nothing took it. Try casting straight at one.'); stopFishing(); return; }
+  } else if (fsh.st === 'fight') {
+    const f = fsh.fish, L = f.o.L * f.sz, big = clamp(L / 40, 0.1, 1);
+    fsh.bt -= dt;
+    if (fsh.burst > 0) fsh.burst -= dt;
+    else if (fsh.bt <= 0 && fsh.stam > 0) { fsh.burst = 0.8 + R() * 0.9; fsh.bt = fsh.burst + 1.6 + R() * 2.2; rndDir(fsh.wd); if (fsh.wd.dot(fsh.fd) < 0) fsh.wd.negate(); beep(520, 0.02); }
+    const B = fsh.burst > 0 ? 1 : 0;
+    fsh.ten += ((reel ? 0.5 + big * 0.12 : 0.1) + B * (reel ? 0.62 : 0.12) - fsh.ten) * Math.min(1, dt * 3.2);
+    if (fsh.ten > 1) { fsh.over += dt; if (fsh.over > 0.8) { lineSnap('The line snapped. Ease off when it runs.'); return; } } else fsh.over = Math.max(0, fsh.over - dt);
+    fsh.stam -= dt * (reel ? 1 : 0.2) * (fsh.ten > 0.3 ? 1 : 0.3);
+    if (fsh.stam <= 0 && !fsh.tired) { fsh.tired = true; say('It is tiring. Bring it in.'); }
+    if (reel && fsh.ten <= 1) fsh.dist -= (fsh.tired ? 18 : 8) * (B ? 0.2 : 1) * dt; else fsh.dist += (B ? 15 : fsh.tired ? 0 : 3) * dt;
+    if (fsh.dist > 160) { lineSnap('It ran out all your line.'); return; }
+    if (B) fsh.fd.lerp(fsh.wd, Math.min(1, dt * 0.9)).normalize();
+    f.lp.copy(P).addScaledVector(fsh.fd, fsh.dist); f.wp.copy(f.lp).applyQuaternion(shipQuat).add(shipPos);
+    tC.copy(B || !reel ? fsh.wd : fsh.fd).applyQuaternion(shipQuat); if (reel && !B) tC.negate(); f.dir.lerp(tC, Math.min(1, dt * 4)).normalize();
+    vel.addScaledVector(fsh.fd, (B ? 1.4 : 0.3) * big * 3 * dt);
+    fsh.lure.copy(f.lp);
+    if (reel) { fsh.click -= dt; if (fsh.click <= 0) { fsh.click = 0.11; beep(1100, 0.005); } }
+    const fu = $('ften'); fu.style.width = (Math.min(fsh.ten, 1) * 100) + '%'; fu.style.background = fsh.ten > 0.85 ? '#ff5a48' : fsh.ten > 0.62 ? '#ffb347' : '#7fe0c0';
+    const dtx = Math.round(fsh.dist) + ' m'; if ($('fdist').textContent !== dtx) $('fdist').textContent = dtx;
+    lineM.material.color.setHex(fsh.ten > 0.85 ? 0xff5a48 : 0xd8f6ff);
+    if (fsh.dist < 5 + L * 0.5) {
+      const len = L.toFixed(1), kg = L * L * L * f.o.w * f.o.h * 420, wt = kg > 1000 ? (kg / 1000).toFixed(1) + ' t' : Math.round(kg) + ' kg';
+      const rec = !(bestFish[f.o.name] >= L); if (rec) bestFish[f.o.name] = L;
+      catches.push([f.o.name, len]); drawCatch(); say('Caught: ' + f.o.name + ', ' + len + ' m, ' + wt + (rec ? '. New record!' : '.')); beep(990, 0.03);
+      f.tgt.copy(f.wp).addScaledVector(f.dir, 200); stopFishing(); f.t = 8; return;
+    }
   }
   lureM.position.copy(fsh.lure);
-  const lp = lineGeo.attributes.position; lp.setXYZ(0, P.x + fwdV.x * 0.3 + Math.cos(yaw) * 0.25, P.y - 0.3, P.z + fwdV.z * 0.3 - Math.sin(yaw) * 0.25); lp.setXYZ(1, fsh.lure.x, fsh.lure.y, fsh.lure.z); lp.needsUpdate = true;
+  cam.updateMatrixWorld(true); rodTip.getWorldPosition(tC); lineM.position.copy(tC); lineM.lookAt(fsh.lure); lineM.scale.set(1, 1, Math.max(tC.distanceTo(fsh.lure), 0.01));
+  fsh.prog = fsh.st === 'fight' ? 1 - fsh.dist / 160 : 0;
 }
+const fM4 = new THREE.Matrix4(), fQ = new THREE.Quaternion(), ZERO = v3(0, 0, 0), UPV = v3(0, 1, 0);
+let fishSpT = 0;
 function fishStep(dt) {
+  fishSpT -= dt;
+  if (fishSpT <= 0) { fishSpT = 0.8; if (speed < 25 && !tj && warpT <= 0) { let c = 0; for (const f of fishes) if (f.on && f.lp.lengthSq() < 520 * 520) c++; if (c < 9) spawnFish(false); } }
   for (const f of fishes) {
-    const a = f.ph + time * f.sp; tC.set(Math.cos(a) * f.r, 1 + f.h + Math.sin(a * 2 + f.ph) * 8, -3 + Math.sin(a) * f.r);
-    tD.copy(f.pos);
-    if (f.state === 'free') f.pos.lerp(tC, Math.min(1, dt * 0.7));
-    else if (f.state === 'lured') { tC.copy(fsh.lure).sub(f.pos); const d = tC.length(), stop = 0.5 + f.s * 2; if (d > stop) f.pos.addScaledVector(tC.normalize(), Math.min(d - stop, (16 + f.s * 2) * dt)); }
-    tD.sub(f.pos).negate(); if (tD.lengthSq() > 1e-8) f.dir.lerp(tD.normalize(), Math.min(1, dt * 3));
-    f.g.position.copy(f.pos); tC.copy(f.pos).add(f.dir); f.g.lookAt(tC);
-    f.tail.rotation.y = Math.sin(time * (1.5 + 5 / f.s) + f.ph) * (f.state === 'free' ? 0.4 : 0.8);
+    if (!f.on) continue; const o = f.o;
+    if (f.state !== 'hooked') {
+      tC.copy(f.wp).sub(shipC); const ds = tC.length();
+      if (ds > 950 && f.state === 'free') { f.on = false; f.m.visible = false; continue; }
+      if (f.state === 'lured') f.tgt.copy(fsh.lure).applyQuaternion(shipQuat).add(shipPos);
+      else {
+        f.t -= dt;
+        if (ds < 24 + o.L * 0.6) { f.tgt.copy(f.wp).addScaledVector(tC.normalize(), 140); f.t = 3; }
+        else if (f.t <= 0 || f.wp.distanceTo(f.tgt) < o.L) { rndDir(f.tgt).multiplyScalar(20 + R() * 110).add(f.home); f.t = 6 + R() * 8; }
+      }
+      tD.copy(f.tgt).sub(f.wp); if (tD.lengthSq() > 0.01) f.dir.lerp(tD.normalize(), Math.min(1, dt * (f.state === 'lured' ? 2.5 : 0.9))).normalize();
+      f.wp.addScaledVector(f.dir, o.sp * (f.state === 'lured' ? 2.2 : 1) * dt);
+    }
+    f.k = Math.min(1, f.k + dt * 0.5);
+    f.lp.copy(f.wp).sub(shipPos).applyQuaternion(invQ);
+    f.m.visible = f.lp.lengthSq() < 590 * 590;
+    if (!f.m.visible) continue;
+    f.m.position.copy(f.lp); fM4.lookAt(f.dir, ZERO, UPV); fQ.setFromRotationMatrix(fM4); f.m.quaternion.copy(invQ).multiply(fQ); f.m.scale.setScalar(f.sz * Math.max(f.k, 0.001));
+    f.uP.x += dt * (f.state === 'hooked' ? 9 : 2.2 + 8 / o.L);
   }
 }
 
@@ -1078,7 +1260,7 @@ function extras(dt) {
   const piloting = mode === 'pilot' && !tj;
   shipC.set(0, 1.3, -3).applyQuaternion(shipQuat).add(shipPos);
   shipV.set(0, 0, -1).applyQuaternion(shipQuat).multiplyScalar(speed);
-  globe.rotation.y += dt * 0.4; reticle.visible = mode === 'pilot';
+  globe.rotation.y += dt * 0.4; holoStep(dt); reticle.visible = mode === 'pilot';
   // guns
   fireT -= dt; torpT += dt; if (torps < 4 && torpT > 7) { torps++; torpT = 0; }
   if (piloting && (keys.Space || (mouseDown && !isTouch)) && fireT <= 0) { fireGuns(); fireT = 0.16; }
@@ -1161,7 +1343,7 @@ const dbg = {
   st: function () { let al = 0; for (const a of aliens) if (a.on) al++; return { shields: Math.round(shields), hull: Math.round(hull), kills: kills, torps: torps, aliens: al, nodes: nodesLeft(), coreHp: coreHp, bossDead: bossDead, relics: relicN, fish: fsh.st, prog: fsh.prog, catches: catches.length, target: target ? target.n : null, tj: !!tj, triple: triple }; },
   ship: function (x, y, z) { shipPos.set(x, y, z); },
   face: function (x, y, z) { tD.set(0, 1, 0); shipQuat.setFromRotationMatrix(new THREE.Matrix4().lookAt(shipPos, v3(x, y, z), tD)); },
-  spawn: function (i) { spawnAlien(nests[i || 0]); }, target: pickTarget, torp: fireTorp, hurt: damage, bodies: bodies, relics: relics, nodes: nodes, aliens: aliens, coreWp: coreWp, links: LINKS
+  spawn: function (i) { spawnAlien(nests[i || 0]); }, target: pickTarget, torp: fireTorp, hurt: damage, bodies: bodies, relics: relics, nodes: nodes, aliens: aliens, coreWp: coreWp, links: LINKS, fishes: fishes, fsh: fsh, cast: castLine
 };
 
 let last = performance.now();
