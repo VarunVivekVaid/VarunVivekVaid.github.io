@@ -101,7 +101,7 @@ const canvas = renderer.domElement;
 
 const space = new THREE.Scene();
 const shipScene = new THREE.Scene();
-const cam = new THREE.PerspectiveCamera(72, innerWidth / innerHeight, 0.05, 600);
+const cam = new THREE.PerspectiveCamera(72, innerWidth / innerHeight, 0.05, 3200);
 cam.rotation.order = 'YXZ';
 const spaceCam = new THREE.PerspectiveCamera(72, innerWidth / innerHeight, 5, 500000);
 
@@ -659,10 +659,10 @@ function update(dt) {
     if (P.z > 6.45) { setMode('eva'); vel.set(0, 0, 1.2); say('Tether attached. Take your time out here.'); }
   } else if (mode === 'eva') {
     tmpA.copy(fwdV).multiplyScalar(f); tmpA.x += cosY * s; tmpA.z += -sinY * s; tmpA.y += up;
-    vel.addScaledVector(tmpA, 4 * dt); vel.multiplyScalar(Math.exp(-0.9 * dt));
+    evaIn.copy(tmpA); vel.addScaledVector(tmpA, evaAcc() * dt); vel.multiplyScalar(Math.exp(-0.9 * dt));
     for (const ax of ['x', 'y', 'z']) { tmpB.copy(P); tmpB[ax] += vel[ax] * dt; if (inHull(tmpB)) vel[ax] *= -0.2; else P[ax] = tmpB[ax]; }
     tmpA.copy(P).sub(anchor); const d = tmpA.length();
-    if (d > 30) { tmpA.normalize(); P.copy(anchor).addScaledVector(tmpA, 30); const out = vel.dot(tmpA); if (out > 0) vel.addScaledVector(tmpA, -out * 1.3); }
+    if (d > tetherLen()) { tmpA.normalize(); P.copy(anchor).addScaledVector(tmpA, tetherLen()); const out = vel.dot(tmpA); if (out > 0) vel.addScaledVector(tmpA, -out * 1.3); }
     if (dOut.open > 0.6 && Math.abs(P.x) < 0.45 && P.y > 0.5 && P.y < 2.1 && P.z < 6.3) { P.x = clamp(P.x, -0.38, 0.38); P.z = 6.2; setMode('walk'); say('Welcome back aboard.'); }
     const tp = tetherGeo.attributes.position; tp.setXYZ(0, anchor.x, anchor.y, anchor.z); tp.setXYZ(1, P.x + fwdV.x * 0.2, P.y - 0.45, P.z + fwdV.z * 0.2); tp.needsUpdate = true;
   }
@@ -828,10 +828,9 @@ function holoStep(dt) {
 const catches = [];
 const catchBoard = panel(0.6, 0.8, 240, 320, function () {}); catchBoard.m.position.set(1.385, 1.45, 5.3); catchBoard.m.rotation.y = -Math.PI / 2;
 function drawCatch() {
-  const g = catchBoard.g; g.fillStyle = '#efe9dc'; g.fillRect(0, 0, 240, 320); g.fillStyle = '#7b3a2e'; g.font = '600 20px Georgia,serif'; g.fillText('Fishdex', 18, 34); g.font = '13px sans-serif';
-  for (let i = 0; i < SPECIES.length; i++) { const n = SPECIES[i].name, b = fz.dex[n]; g.fillStyle = b ? '#3a342d' : '#a59c8d'; g.fillText(n, 18, 64 + i * 36); g.fillText(b ? 'best ' + b.toFixed(1) + ' m' : 'not caught yet', 18, 80 + i * 36); }
-  g.fillStyle = '#7b3a2e'; g.fillText('Caught ' + catches.length + '    Derby best ' + fz.best, 18, 262);
-  g.fillStyle = '#3a342d'; g.fillText('Press E here to start a', 18, 286); g.fillText('two minute fishing derby.', 18, 303); catchBoard.t.needsUpdate = true;
+  const g = catchBoard.g; g.fillStyle = '#efe9dc'; g.fillRect(0, 0, 240, 320); g.fillStyle = '#7b3a2e'; g.font = '600 19px Georgia,serif'; g.fillText('Fishdex', 14, 28); g.font = '12px sans-serif';
+  for (let i = 0; i < SPECIES.length; i++) { const n = SPECIES[i].name, b = fz.dex[n]; g.fillStyle = b ? '#3a342d' : '#a59c8d'; g.fillText(b ? n : n.replace(/[a-z]/g, '.'), 14, 50 + i * 18); g.fillText(b ? b.toFixed(1) + ' m' : '?', 176, 50 + i * 18); }
+  g.fillStyle = '#7b3a2e'; g.fillText('Caught ' + catches.length + '    Derby best ' + fz.best, 14, 278); g.fillStyle = '#3a342d'; g.fillText('Press E here for a 4 minute derby', 14, 300); catchBoard.t.needsUpdate = true;
 }
 acts.push(
   { p: v3(-2.85, 1.0, 0.7), r: 1.7, label: 'Open LinkedIn', fn: function () { openLink(LINKS.linkedin); } },
@@ -861,191 +860,305 @@ function finGeo(pts, sx, sy) {
   const s = new THREE.Shape(); s.moveTo(pts[0][0] * sx, pts[0][1] * sy); for (let i = 1; i < pts.length; i++) s.lineTo(pts[i][0] * sx, pts[i][1] * sy);
   const g = new THREE.ShapeGeometry(s); g.rotateY(Math.PI / 2); return g;
 }
+function put(parts, g, x, y, z, col, glow) { g.translate(x, y, z); parts.push({ g: g, col: col, glow: glow || 0 }); }
+function spike(r, len, seg) { const g = new THREE.ConeGeometry(r, len, seg || 5); g.rotateX(Math.PI / 2); g.translate(0, 0, len / 2); return g; }
+function spikeB(r, len, seg) { const g = new THREE.ConeGeometry(r, len, seg || 5); g.rotateX(-Math.PI / 2); g.translate(0, 0, -len / 2); return g; }
+function rayFin(parts, n, a0, a1, lenFn, ox, oy, oz, c1, c2, glow, rot) {
+  const pos = [], da = (a1 - a0) / n;
+  for (let i = 0; i < n; i++) { const a = a0 + i * da, b = a + da, la = lenFn(i / n), lb = lenFn((i + 1) / n); pos.push(0, 0, 0, 0, Math.sin(a) * la, -Math.cos(a) * la, 0, Math.sin(b) * lb, -Math.cos(b) * lb); }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pos), 3));
+  const nr = new Float32Array(pos.length); for (let i = 0; i < nr.length; i += 3) nr[i] = 1; g.setAttribute('normal', new THREE.BufferAttribute(nr, 3));
+  if (rot) g.rotateZ(rot); g.translate(ox, oy, oz);
+  let k = 0; parts.push({ g: g, glow: glow, col: function () { const v = k % 3, tri = Math.floor(k / 3); k++; if (v === 0) return c1; return ((tri + (v === 2 ? 1 : 0)) % 2) ? c2 : c1; } });
+}
 function buildFish(o) {
-  const L = o.L, R0 = L * o.h * 0.5, ws = o.w / o.h, back = rgb(o.back), belly = rgb(o.belly), gc = rgb(o.glowc), parts = [];
-  const rAt = function (t) { return Math.max(Math.pow(Math.sin(Math.PI * Math.pow(t, 0.55)), 0.8), t > 0.6 ? 0.08 : 0); };
-  const pts = []; for (let i = 0; i <= 24; i++) { const t = 1 - i / 24; pts.push(new THREE.Vector2(rAt(t) * R0 + 0.0005, (0.5 - t) * L)); }
-  const body = new THREE.LatheGeometry(pts, 20); body.rotateX(Math.PI / 2); body.scale(ws, 1, 1);
+  if (o.build) return o.build(o);
+  const L = o.L, R0 = L * o.h * 0.5, ws = o.w / o.h, back = rgb(o.back), belly = rgb(o.belly), gc = rgb(o.glowc), parts = [], F = o.f || {}, ne = o.nose || 0.55, flat = o.kind === 2;
+  const rAt = function (t) { return Math.max(Math.pow(Math.sin(Math.PI * Math.pow(t, ne)), 0.8), t > 0.6 ? 0.08 : 0); };
+  const zAt = function (t) { return (0.5 - t) * L; };
+  const pts = []; for (let i = 0; i <= 36; i++) { const t = 1 - i / 36; pts.push(new THREE.Vector2(rAt(t) * R0 + 0.0005, zAt(t))); }
+  const body = new THREE.LatheGeometry(pts, 28); body.rotateX(Math.PI / 2); body.scale(ws, 1, 1);
+  const dark = mixc(back, [0, 0, 0], 0.55), gillZ = zAt(7 / 36);
   parts.push({ g: body, col: function (x, y, z) {
-    let c = mixc(belly, back, (y / R0) * 0.9 + 0.55);
-    if (o.pat === 1) { if (fbm(x * 0.9 + 7, y * 0.9, z * 0.7, 3) > 0.52) c = mixc(c, [1, 0.96, 0.9], 0.9); if (vnoise(x * 1.7, y * 1.7 + 4, z * 1.1) > 0.76) c = [0.03, 0.03, 0.04]; }
-    else if (o.pat === 2) c = mixc(c, [0.9, 0.95, 0.9], Math.pow(Math.abs(Math.sin(z * 2.2)), 8) * 0.6);
-    else if (o.pat === 3) { if (y > 0 && vnoise(x * 1.3, 2, z * 1.3) > 0.7) c = mixc(c, gc, 0.8); }
+    const yy = y / R0, p = o.pat; let c = mixc(belly, back, yy * 0.9 + 0.55);
+    if (p === 1) { if (fbm(x * 0.9 + 7, y * 0.9, z * 0.7, 3) > 0.52) c = mixc(c, [1, 0.96, 0.9], 0.9); if (vnoise(x * 1.7, y * 1.7 + 4, z * 1.1) > 0.76) c = [0.03, 0.03, 0.04]; }
+    else if (p === 2) c = mixc(c, [0.9, 0.95, 0.9], Math.pow(Math.abs(Math.sin(z * 30 / L)), 8) * 0.55);
+    else if (p === 3) { if (yy > 0 && vnoise(x * 1.3, 2, z * 1.3) > 0.68) c = mixc(c, gc, 0.8); }
+    else if (p === 4) c = mixc(c, [1, 1, 1], Math.pow(vnoise(x * 5, y * 5, z * 5), 3) * 0.9);
+    else if (p === 5) c = mixc(c, dark, Math.pow(Math.abs(Math.sin(Math.hypot(x, z) * 26 / L)), 3) * 0.7);
+    else if (p === 6) c = mixc(c, [0.55, 0.5, 0.45], fbm(x * 1.5, y * 1.5, z * 1.5, 3) * 1.4 - 0.4);
+    else if (p === 7 && yy < -0.1) c = mixc(c, dark, Math.pow(Math.abs(Math.sin(x * 60 / L)), 4) * 0.5);
+    c = mixc(c, [c[0] * 1.3, c[1] * 1.3, c[2] * 1.3], vnoise(x * 40 / L, y * 40 / L, z * 40 / L) * 0.5);
+    if (!flat && Math.abs(yy) < 0.07 && z < L * 0.3 && z > -L * 0.4) c = mixc(c, gc, 0.45);
+    if (!flat && Math.abs(z - gillZ) < L * 0.005 && Math.abs(yy) < 0.6) c = mixc(c, [0, 0, 0], 0.6);
     return c;
   } });
-  const zt = -L / 2, finC = mixc(back, gc, 0.35);
-  if (o.kind !== 2) {
-    const cf = finGeo([[0, 0.06], [0.6, 0.8], [0.45, 0], [0.6, -0.8], [0, -0.06]], L * o.tail, L * o.tail); if (o.kind === 1) cf.rotateZ(Math.PI / 2); cf.translate(0, 0, zt + L * 0.04); parts.push({ g: cf, col: finC, glow: 0.25 });
-    const df = finGeo([[0, 0], [0.3, 1], [0.8, 0.7], [1, 0]], L * 0.3, L * o.dorsal); df.translate(0, R0 * 0.9, L * 0.14); parts.push({ g: df, col: finC, glow: 0.15 });
-    const af = finGeo([[0, 0], [0.45, -1], [1, 0]], L * 0.15, L * o.dorsal * 0.7); af.translate(0, -R0 * 0.75, -L * 0.14); parts.push({ g: af, col: finC, glow: 0.15 });
-    const ps = L * (o.kind === 1 ? 0.3 : 0.2);
-    for (const s of [-1, 1]) { const pf = finGeo([[0, 0], [0.5, 0.28], [1, -0.1], [0.45, -0.3]], ps, ps); pf.rotateZ(s * 1.15); pf.translate(s * ws * R0 * 0.8, -R0 * 0.3, L * 0.2); parts.push({ g: pf, col: finC, glow: 0.15 }); }
+  const zt = -L / 2, f1 = mixc(back, gc, 0.4), f2 = mixc(f1, [0, 0, 0], 0.5);
+  if (!flat) {
+    const ts = L * o.tail;
+    rayFin(parts, 16, -1.0, 1.0, function (t) { return ts * (0.5 + 0.5 * Math.pow(Math.abs(t * 2 - 1), 1.3)); }, 0, 0, zt + L * 0.03, f1, f2, 0.25, o.kind === 1 ? Math.PI / 2 : 0);
+    const dh = L * o.dorsal;
+    rayFin(parts, 10, 0.25, 1.5, function (t) { return dh * 2.2 * (0.55 + 0.45 * Math.sin(Math.PI * t)); }, 0, R0 * 0.88, L * 0.1, f1, f2, 0.15, 0);
+    rayFin(parts, 6, 0.3, 1.4, function (t) { return dh * 1.2 * (0.6 + 0.4 * Math.sin(Math.PI * t)); }, 0, R0 * 0.55, -L * 0.22, f1, f2, 0.15, 0);
+    rayFin(parts, 7, -1.4, -0.3, function (t) { return dh * 1.5 * (0.6 + 0.4 * Math.sin(Math.PI * t)); }, 0, -R0 * 0.7, -L * 0.14, f1, f2, 0.15, 0);
+    const pl = L * (o.kind === 1 ? 0.3 : F.longfins ? 0.3 : 0.2);
+    for (const s of [-1, 1]) {
+      rayFin(parts, 8, -1.1, -0.2, function (t) { return pl * (0.6 + 0.4 * Math.sin(Math.PI * t)); }, s * ws * R0 * 0.85, -R0 * 0.25, L * 0.24, f1, f2, 0.15, s * 1.25);
+      rayFin(parts, 5, -1.2, -0.3, function (t) { return pl * 0.5; }, s * ws * R0 * 0.5, -R0 * 0.7, L * 0.04, f1, f2, 0.15, s * 0.7);
+    }
   } else {
-    const tl = new THREE.ConeGeometry(L * 0.025, L * 0.9, 6); tl.rotateX(-Math.PI / 2); tl.translate(0, 0, zt - L * 0.4); parts.push({ g: tl, col: back, glow: 0.1 });
+    put(parts, spikeB(L * 0.025, L * 0.95, 6), 0, 0, zt + L * 0.05, back, 0.1);
   }
-  const ez = L * 0.37, ex = o.kind === 2 ? L * 0.09 : rAt(0.13) * R0 * ws * 0.9, ey = o.kind === 2 ? R0 * 0.75 : R0 * 0.3 * rAt(0.13), er = Math.min(L * 0.02, R0 * 0.5);
+  if (F.whiskers) for (const s of [-1, 1]) for (let k = 0; k < 2; k++) { const g = spike(L * 0.007, L * (0.13 - k * 0.05), 4); g.rotateX(0.9); g.rotateY(s * (0.5 + k * 0.4)); put(parts, g, s * ws * R0 * 0.3, -R0 * 0.25, L * 0.455, mixc(belly, gc, 0.4), 0.3); }
+  if (F.teeth) { const tk = F.teeth, rm = rAt(0.05) * R0 * 0.9, tz = zAt(0.05); for (let k = 0; k < 14; k++) { const a = k / 14 * 6.2832; put(parts, spike(L * 0.006 * tk, L * 0.03 * tk, 4), Math.cos(a) * rm * ws, Math.sin(a) * rm, tz, [1, 1, 0.92], 0.3); } }
+  if (F.lure) { const g = spike(L * 0.008, L * 0.3, 5); g.rotateX(-0.9); put(parts, g, 0, R0 * 0.85, L * 0.3, dark, 0); put(parts, new THREE.SphereGeometry(L * 0.03, 12, 10), 0, R0 * 0.85 + Math.sin(0.9) * L * 0.3, L * 0.3 + Math.cos(0.9) * L * 0.3, gc, 1); }
+  if (F.spines) for (let k = 0; k < 14; k++) { const t = 0.2 + k * 0.04, g = spike(L * 0.006, L * 0.035, 4); g.rotateX(-1.87); put(parts, g, 0, rAt(t) * R0 * 0.95, zAt(t), mixc(back, [1, 1, 1], 0.4), 0.2); }
+  if (F.scutes) for (let k = 0; k < 16; k++) { const t = 0.14 + k * 0.045, sc = mixc(back, [1, 1, 1], 0.5);
+    for (const q of [[0, 1], [0.98, 0.25], [-0.98, 0.25]]) { const g = new THREE.OctahedronGeometry(L * 0.012, 0); g.scale(1, 0.6, 1.7); put(parts, g, q[0] * rAt(t) * R0 * ws, q[1] * rAt(t) * R0, zAt(t), sc, 0.1); } }
+  if (F.streamers) for (const s of [-1, 1]) put(parts, finGeo([[0, 0.015], [1, 0.04], [1.9, 0], [1, -0.01], [0, -0.015]], L * 0.5, L * 0.5), 0, s * R0 * 0.15, zt + L * 0.02, gc, 0.9);
+  if (F.horns) for (const s of [-1, 1]) { const g = spike(L * 0.022, L * 0.14, 5); g.rotateY(s * 0.25); put(parts, g, s * L * 0.07, 0, L * 0.42, back, 0.1); }
+  if (F.lanterns) for (let k = 0; k < F.lanterns; k++) { const t = 0.1 + R() * 0.75, a = R() * 6.2832; put(parts, new THREE.SphereGeometry(L * (0.005 + R() * 0.006), 6, 5), Math.cos(a) * rAt(t) * R0 * ws, Math.sin(a) * rAt(t) * R0, zAt(t), gc, 1); }
+  const er = Math.min(L * 0.02, R0 * 0.5), ex = flat ? L * 0.09 : rAt(0.13) * R0 * ws * 0.92, ey = flat ? R0 * 0.75 : R0 * 0.3 * rAt(0.13), ez = zAt(0.13);
   for (const s of [-1, 1]) {
-    const e = new THREE.SphereGeometry(er, 10, 8); e.translate(s * ex, ey, ez); parts.push({ g: e, col: [1, 1, 1], glow: 0.5 });
-    const p = new THREE.SphereGeometry(er * 0.55, 8, 6); p.translate(s * (ex + er * 0.6), ey, ez + er * 0.3); parts.push({ g: p, col: [0.02, 0.02, 0.03] });
-    for (let i = 0; i < 8; i++) {
-      const t = 0.22 + i * 0.085, sp = new THREE.SphereGeometry(Math.max(L * 0.012, 0.05), 6, 5);
-      if (o.kind === 2) sp.translate(s * L * 0.07 * (i + 1), R0 * 0.35, L * 0.05); else sp.translate(s * rAt(t) * R0 * ws, 0, (0.5 - t) * L);
-      parts.push({ g: sp, col: gc, glow: 1 });
+    put(parts, new THREE.SphereGeometry(er, 12, 10), s * ex, ey, ez, [1, 1, 1], 0.4);
+    put(parts, new THREE.SphereGeometry(er * 0.72, 10, 8), s * (ex + er * 0.42), ey, ez + er * 0.15, gc, 0.7);
+    put(parts, new THREE.SphereGeometry(er * 0.42, 8, 6), s * (ex + er * 0.85), ey, ez + er * 0.3, [0.01, 0.01, 0.02], 0);
+    for (let i = 0; i < 10; i++) {
+      const t = 0.2 + i * 0.07, sp = new THREE.SphereGeometry(Math.max(L * 0.011, 0.05), 6, 5);
+      if (flat) put(parts, sp, s * L * 0.06 * (i + 1) * ws / 9, R0 * 0.35, L * 0.05, gc, 1); else put(parts, sp, s * rAt(t) * R0 * ws, 0, zAt(t), gc, 1);
     }
   }
   return mergeGeo(parts);
 }
+function buildJelly(o) {
+  const L = o.L, Rr = L * 0.4, gc = rgb(o.glowc), bc = rgb(o.back), parts = [], cz = L * 0.5 - Rr * 0.75, rimZ = cz + Rr * Math.cos(1.75) * 0.75, rimR = Rr * Math.sin(1.75);
+  const bell = new THREE.SphereGeometry(Rr, 32, 14, 0, 6.2832, 0, 1.75); bell.rotateX(Math.PI / 2); bell.scale(1, 1, 0.75);
+  put(parts, bell, 0, 0, cz, function (x, y, z) { return mixc(bc, gc, Math.pow(Math.abs(Math.sin(Math.atan2(y, x) * 8)), 4) * 0.6 + (z < rimZ + Rr * 0.15 ? 0.4 : 0)); }, 0.35);
+  put(parts, new THREE.TorusGeometry(rimR, Rr * 0.05, 6, 36), 0, 0, rimZ, gc, 0.9);
+  for (let k = 0; k < 4; k++) { const a = k * 1.5708 + 0.785; put(parts, new THREE.SphereGeometry(Rr * 0.2, 10, 8), Math.cos(a) * Rr * 0.38, Math.sin(a) * Rr * 0.38, cz + Rr * 0.2, gc, 0.8); put(parts, spikeB(Rr * 0.09, L * 0.45, 6), Math.cos(a) * Rr * 0.2, Math.sin(a) * Rr * 0.2, rimZ + Rr * 0.1, mixc(bc, gc, 0.5), 0.5); }
+  for (let k = 0; k < 22; k++) { const a = k / 22 * 6.2832; put(parts, spikeB(Rr * 0.014, L * (0.45 + R() * 0.25), 4), Math.cos(a) * rimR * 0.96, Math.sin(a) * rimR * 0.96, rimZ, mixc(bc, gc, 0.6), 0.5); }
+  return mergeGeo(parts);
+}
+function buildSquid(o) {
+  const L = o.L, Rm = L * 0.075, gc = rgb(o.glowc), bc = rgb(o.back), dk = mixc(bc, [0.2, 0, 0], 0.7), parts = [];
+  const pts = []; for (let i = 0; i <= 22; i++) { const t = 1 - i / 22; pts.push(new THREE.Vector2(Rm * Math.sqrt(t) * (1 - 0.15 * t) + 0.001, L / 2 - t * L / 2)); }
+  const man = new THREE.LatheGeometry(pts, 24); man.rotateX(Math.PI / 2);
+  parts.push({ g: man, glow: 0.12, col: function (x, y, z) { let c = mixc(bc, gc, (z / L - 0.2) * 1.2); if (vnoise(x * 30 / L, y * 30 / L, z * 30 / L) > 0.66) c = dk; return c; } });
+  put(parts, new THREE.SphereGeometry(Rm * 0.85, 14, 10), 0, 0, -L * 0.02, bc, 0.1);
+  for (const s of [-1, 1]) {
+    const fin = finGeo([[0, 0], [0.5, 1], [1, 0]], L * 0.22, L * 0.12); fin.rotateZ(-s * Math.PI / 2); put(parts, fin, s * Rm * 0.45, 0, L * 0.47, mixc(bc, gc, 0.5), 0.3);
+    put(parts, new THREE.SphereGeometry(L * 0.024, 12, 10), s * Rm * 0.8, 0, -L * 0.02, [1, 1, 1], 0.5); put(parts, new THREE.SphereGeometry(L * 0.013, 8, 6), s * (Rm * 0.8 + L * 0.016), 0, -L * 0.02, [0.01, 0.01, 0.02], 0);
+    put(parts, spikeB(Rm * 0.07, L * 0.52, 5), s * Rm * 0.3, -Rm * 0.2, -L * 0.05, bc, 0.2); put(parts, new THREE.SphereGeometry(Rm * 0.24, 8, 6), s * Rm * 0.3, -Rm * 0.2, -L * 0.57, gc, 1);
+  }
+  for (let k = 0; k < 8; k++) { const a = k / 8 * 6.2832 + 0.39, g = spikeB(Rm * 0.16, L * 0.33, 5); g.rotateX(Math.sin(a) * 0.2); g.rotateY(-Math.cos(a) * 0.2); put(parts, g, Math.cos(a) * Rm * 0.4, Math.sin(a) * Rm * 0.4, -L * 0.05, mixc(bc, gc, 0.25), 0.2); }
+  return mergeGeo(parts);
+}
 function fishMat(o) {
-  const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.45, metalness: 0.1, side: THREE.DoubleSide, emissive: o.glowc, emissiveIntensity: 0.1 });
-  m.userData.uP = { value: new THREE.Vector4(R() * 6, o.L * (o.kind === 1 ? 0.03 : o.kind === 2 ? 0.07 : 0.055), o.L, o.kind) };
+  const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.45, metalness: 0.1, side: THREE.DoubleSide, emissive: o.glowc, emissiveIntensity: 0.1, transparent: !!o.op, opacity: o.op || 1, depthWrite: !o.op || o.op > 0.5 });
+  m.userData.uP = { value: new THREE.Vector4(R() * 6, o.L * (o.kind === 1 ? 0.03 : o.kind === 2 ? 0.07 : o.kind === 4 ? 0.02 : 0.055), o.L, o.kind) };
+  m.userData.uG = { value: 0 };
   m.onBeforeCompile = function (sh) {
-    sh.uniforms.uP = m.userData.uP;
+    sh.uniforms.uP = m.userData.uP; sh.uniforms.uG = m.userData.uG;
     sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float glow;\nvarying float vGlow;\nuniform vec4 uP;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvGlow = glow;\nfloat fs = clamp(0.5 - position.z / uP.z, 0.0, 1.0);\nfloat fw = sin(uP.x - fs * 5.0) * uP.y;\nif (uP.w < 0.5) transformed.x += fw * (0.12 + fs * fs);\nelse if (uP.w < 1.5) transformed.y += fw * (0.12 + fs * fs);\nelse transformed.y += sin(uP.x - abs(position.x) / uP.z * 5.0) * uP.y * abs(position.x) / uP.z * 2.2;');
-    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vGlow;')
-      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += vColor.rgb * vGlow * 1.8;');
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvGlow = glow;\nfloat fs = clamp(0.5 - position.z / uP.z, 0.0, 1.0);\nfloat fw = sin(uP.x - fs * 5.0) * uP.y;\nif (uP.w < 0.5) transformed.x += fw * (0.12 + fs * fs);\nelse if (uP.w < 1.5) transformed.y += fw * (0.12 + fs * fs);\nelse if (uP.w < 2.5) transformed.y += sin(uP.x - abs(position.x) / uP.z * 5.0) * uP.y * abs(position.x) / uP.z * 2.2;\nelse if (uP.w < 3.5) transformed.xy *= 1.0 + sin(uP.x - fs * 4.0) * 0.18 * (0.3 + fs);\nelse transformed.x += sin(uP.x - fs * 16.0) * uP.y * (0.25 + fs);');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vGlow;\nuniform float uG;')
+      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += vColor.rgb * (vGlow * (1.8 + uG * 5.0) + uG * 0.35);');
   };
-  m.customProgramCacheKey = function () { return 'spacefish'; };
+  m.customProgramCacheKey = function () { return 'spacefish2'; };
   return m;
 }
 const SPECIES = [
-  { name: 'Void Koi', L: 5.5, w: 0.2, h: 0.3, back: 0xf26a1b, belly: 0xfff4e6, glowc: 0xffa040, tail: 0.3, dorsal: 0.12, kind: 0, pat: 1, sp: 7, school: 3 },
-  { name: 'Glass Eel', L: 15, w: 0.035, h: 0.05, back: 0x7fd0ff, belly: 0xe8fbff, glowc: 0x9fe8ff, tail: 0.05, dorsal: 0.02, kind: 0, pat: 0, sp: 9, school: 1 },
-  { name: 'Star Sturgeon', L: 11, w: 0.13, h: 0.17, back: 0x2f4b5c, belly: 0xcfe0d8, glowc: 0x7fe0a0, tail: 0.24, dorsal: 0.08, kind: 0, pat: 2, sp: 6, school: 1 },
-  { name: 'Nebula Ray', L: 8, w: 1.25, h: 0.14, back: 0x5a2f8f, belly: 0xe2c8ff, glowc: 0xc48bff, tail: 0, dorsal: 0, kind: 2, pat: 3, sp: 5, school: 2 },
-  { name: 'Lantern Whale', L: 42, w: 0.2, h: 0.24, back: 0x1f3550, belly: 0xbfd4e6, glowc: 0xffe9a8, tail: 0.3, dorsal: 0.03, kind: 1, pat: 0, sp: 4, school: 1 }];
+  { name: 'Void Koi', L: 6, w: 0.2, h: 0.3, back: 0xf26a1b, belly: 0xfff4e6, glowc: 0xffa040, tail: 0.34, dorsal: 0.065, kind: 0, pat: 1, sp: 7, run: 15, turn: 1.6, stam: 7, sE: 3, sL: 1, school: 3, n: 5, f: { whiskers: 1, longfins: 1 } },
+  { name: 'Comet Carp', L: 9, w: 0.15, h: 0.22, back: 0x8fd8ff, belly: 0xf4fcff, glowc: 0xbfefff, tail: 0.3, dorsal: 0.05, kind: 0, pat: 4, sp: 12, run: 30, turn: 0.15, stam: 9, sE: 5, sL: 1.2, school: 2, n: 3, f: { streamers: 1 } },
+  { name: 'Glass Eel', L: 22, w: 0.03, h: 0.04, back: 0x7fd0ff, belly: 0xe8fbff, glowc: 0x9fe8ff, tail: 0.03, dorsal: 0.008, kind: 4, pat: 0, sp: 9, run: 18, turn: 2.2, stam: 8, sE: 2.2, sL: 0.8, school: 1, n: 2, op: 0.55, f: {} },
+  { name: 'Star Sturgeon', L: 14, w: 0.13, h: 0.16, back: 0x2f4b5c, belly: 0xcfe0d8, glowc: 0x7fe0a0, tail: 0.24, dorsal: 0.035, kind: 0, pat: 2, nose: 0.7, sp: 6, run: 13, turn: 1, stam: 12, sE: 4, sL: 1.3, school: 1, n: 2, f: { scutes: 1, whiskers: 1 } },
+  { name: 'Nebula Ray', L: 12, w: 1.3, h: 0.13, back: 0x5a2f8f, belly: 0xe2c8ff, glowc: 0xc48bff, tail: 0, dorsal: 0, kind: 2, pat: 3, sp: 6, run: 16, turn: 1.3, stam: 10, sE: 3.2, sL: 1, school: 2, n: 2, f: { horns: 1 } },
+  { name: 'Ring Skate', L: 10, w: 1.0, h: 0.1, back: 0xc9a25a, belly: 0xf4e6c8, glowc: 0xffd890, tail: 0, dorsal: 0, kind: 2, pat: 5, sp: 7, run: 20, turn: 1.8, stam: 8, sE: 1.8, sL: 0.7, school: 1, n: 2, f: {} },
+  { name: 'Rock Lurker', L: 16, w: 0.34, h: 0.42, back: 0x3a3530, belly: 0x6b5e52, glowc: 0x7dff9a, tail: 0.2, dorsal: 0.05, kind: 0, pat: 6, nose: 0.4, sp: 3, run: 11, turn: 0.8, stam: 16, sE: 3.5, sL: 1.6, school: 1, n: 1, f: { teeth: 2.4, lure: 1, spines: 1 } },
+  { name: 'Thornback Pike', L: 18, w: 0.1, h: 0.13, back: 0x3f5a2a, belly: 0xd8e2b0, glowc: 0xd6ff6a, tail: 0.2, dorsal: 0.03, kind: 0, pat: 2, nose: 0.75, sp: 11, run: 26, turn: 1.4, stam: 11, sE: 2.6, sL: 1, school: 1, n: 2, f: { teeth: 1.2, spines: 1 } },
+  { name: 'Moon Jelly', L: 10, w: 0.8, h: 0.8, back: 0x6a58c8, belly: 0x6a58c8, glowc: 0xbfa8ff, kind: 3, sp: 2.5, run: 8, turn: 0.6, stam: 6, sE: 2, sL: 1.2, school: 3, n: 3, op: 0.6, build: buildJelly },
+  { name: 'Lantern Whale', L: 60, w: 0.2, h: 0.24, back: 0x1f3550, belly: 0xbfd4e6, glowc: 0xffe9a8, tail: 0.28, dorsal: 0.012, kind: 1, pat: 7, sp: 5, run: 16, turn: 0.35, stam: 28, sE: 6, sL: 2.5, school: 1, n: 1, f: { lanterns: 70 } },
+  { name: 'The Deep One', L: 140, w: 0.035, h: 0.045, back: 0x14202e, belly: 0x3a5a6a, glowc: 0xff5a8a, tail: 0.05, dorsal: 0.012, kind: 4, pat: 2, nose: 0.5, sp: 8, run: 24, turn: 0.5, stam: 42, sE: 5, sL: 2.5, school: 1, n: 1, f: { teeth: 1.6, spines: 1, lanterns: 60, horns: 1 } },
+  { name: 'Sun Squid', L: 25, w: 0.15, h: 0.15, back: 0xe2502a, belly: 0xe2502a, glowc: 0xffb040, kind: 3, sp: 6, run: 22, turn: 1.2, stam: 14, sE: 2.5, sL: 1, school: 1, n: 1, build: buildSquid }];
 const fishes = [];
 (function () {
-  const cnt = [5, 2, 3, 3, 1];
-  for (let si = 0; si < SPECIES.length; si++) {
-    const o = SPECIES[si], geo = buildFish(o);
-    for (let k = 0; k < cnt[si]; k++) {
+  for (const o of SPECIES) {
+    const geo = buildFish(o);
+    for (let k = 0; k < o.n; k++) {
       const mat = fishMat(o), m = new THREE.Mesh(geo, mat); m.visible = false; m.frustumCulled = false; ship.add(m);
-      fishes.push({ o: o, m: m, uP: mat.userData.uP.value, on: false, wp: v3(0, 0, 0), dir: v3(0, 0, 1), tgt: v3(0, 0, 0), home: v3(0, 0, 0), lp: v3(0, 0, 0), t: 0, k: 0, sz: 1, state: 'free' });
+      fishes.push({ o: o, m: m, uP: mat.userData.uP.value, uG: mat.userData.uG, on: false, gold: false, wp: v3(0, 0, 0), dir: v3(0, 0, 1), tgt: v3(0, 0, 0), home: v3(0, 0, 0), lp: v3(0, 0, 0), t: 0, k: 0, sz: 1, state: 'free' });
     }
   }
 })();
+function nameOf(f) { return (f.gold ? 'Golden ' : '') + f.o.name; }
+function habitat() {
+  const w = [4, 1, 1.5, 1, 1.5, 0.5, 0.4, 1.5, 2, 0.8, 0, 0.6];
+  if (shipPos.distanceTo(cometPos) < 5000) { w[1] = 9; w[2] = 2; }
+  if (shipPos.distanceTo(giant.position) < 15000) { w[5] = 8; w[4] = 5; }
+  if (shipPos.distanceTo(field.position) < 5000) { w[6] = 6; w[3] = 5; w[7] = 3; }
+  if (shipPos.distanceTo(planet.position) < 6000) { w[9] = 4; w[8] = 5; }
+  if (shipPos.distanceTo(eyePos) < 5000) { w[11] = 5; w[2] = 4; w[10] = Object.keys(fz.dex).length >= 8 ? 6 : 0.3; }
+  if (bossDead && shipPos.distanceTo(bossPos) < 12000) { w[2] = 6; w[7] = 5; w[11] = 3; }
+  return w;
+}
 function spawnFish(near) {
-  const w = [5, 2, 3, 3, 0.7]; let r = R() * 13.7, si = 0; while (si < 4 && r > w[si]) { r -= w[si]; si++; }
+  const w = habitat(); let tot = 0; for (const x of w) tot += x; let r = R() * tot, si = 0; while (si < w.length - 1 && r > w[si]) { r -= w[si]; si++; }
   const o = SPECIES[si]; let n = o.school, c = null;
   for (const f of fishes) {
     if (f.on || f.o !== o) continue;
-    if (!c) c = rndDir(v3(0, 0, 0)).multiplyScalar(near ? 70 + R() * 230 : 230 + R() * 240).add(shipPos);
-    f.on = true; f.state = 'free'; f.k = near ? 1 : 0; f.sz = 0.8 + R() * 0.45; f.gold = R() < 0.08; if (f.gold) f.sz *= 1.3; f.m.material.emissive.setHex(f.gold ? 0xffc400 : o.glowc); f.m.material.emissiveIntensity = f.gold ? 0.6 : 0.1; rndDir(f.home).multiplyScalar(50 + R() * 110).add(shipPos); rndDir(f.wp).multiplyScalar(o.L * 1.5 * (o.school - n)).add(c); rndDir(f.dir); f.t = 0; f.m.visible = true;
+    if (!c) c = rndDir(v3(0, 0, 0)).multiplyScalar((near ? 70 + R() * 230 : 230 + R() * 240) + o.L * 2).add(shipPos);
+    f.on = true; f.state = 'free'; f.k = near ? 1 : 0; f.sz = 0.8 + R() * 0.45; f.gold = R() < 0.08; if (f.gold) f.sz *= 1.3;
+    f.m.material.emissive.setHex(f.gold ? 0xffc400 : o.glowc); f.m.material.emissiveIntensity = f.gold ? 0.6 : 0.1; f.uG.value = 0;
+    rndDir(f.home).multiplyScalar(50 + R() * 110 + o.L * 1.5).add(shipPos); rndDir(f.wp).multiplyScalar(o.L * 1.5 * (o.school - n)).add(c); rndDir(f.dir); f.t = 0; f.m.visible = true;
     if (--n <= 0) break;
   }
 }
-for (let i = 0; i < 6; i++) spawnFish(true);
-const fsh = { st: 'idle', lure: v3(0, 0, 0), v: v3(0, 0, 0), t: 0, fish: null, aim: null, aimF: null, dist: 0, ten: 0, stam: 0, bt: 0, burst: 0, over: 0, tired: false, prog: 0, fd: v3(0, 0, 1), wd: v3(0, 0, 1), click: 0 };
-const bestFish = {};
+const fsh = { st: 'idle', lure: v3(0, 0, 0), v: v3(0, 0, 0), t: 0, fish: null, aim: null, aimF: null, len: 0, ten: 0, stam: 0, stamMax: 1, sT: 0, tell: 0, surge: 0, over: 0, clean: true, prog: 0, n: v3(0, 0, 1), wd: v3(0, 0, 1) };
+const evaIn = v3(0, 0, 0);
+function evaAcc() { return fsh.st === 'ride' || fsh.st === 'tow' ? 11 : 4; }
+function tetherLen() { return fsh.st === 'ride' || fsh.st === 'tow' || fsh.st === 'home' ? 1e9 : 30; }
 const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.018, 1.3, 6), M.brass); rod.position.set(0.3, -0.32, -0.7); rod.rotation.x = -1.3; rod.visible = false; cam.add(rod);
 const rodTip = new THREE.Object3D(); rodTip.position.y = 0.65; rod.add(rodTip);
 const lureM = new THREE.Mesh(new THREE.SphereGeometry(0.1, 10, 8), new THREE.MeshBasicMaterial({ color: 0xfff0b0 })); lureM.visible = false; ship.add(lureM);
 const lureGl = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex(1), color: 0xffe08a, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false })); lureGl.scale.set(1.2, 1.2, 1); lureM.add(lureGl);
 const lineG = new THREE.CylinderGeometry(0.012, 0.012, 1, 5); lineG.rotateX(Math.PI / 2); lineG.translate(0, 0, 0.5);
 const lineM = new THREE.Mesh(lineG, new THREE.MeshBasicMaterial({ color: 0xd8f6ff })); lineM.visible = false; lineM.frustumCulled = false; ship.add(lineM);
-function stopFishing() { const f = fsh.fish; if (f) { f.state = 'free'; f.home.copy(f.wp); f.t = 0; } fsh.fish = null; fsh.aimF = null; fsh.st = 'idle'; lureM.visible = false; lineM.visible = false; $('fishui').style.display = 'none'; }
+function freeFish() { const f = fsh.fish; if (f) { f.state = 'free'; f.home.copy(f.wp); f.t = 0; f.uG.value = 0; } fsh.fish = null; fsh.aimF = null; lureM.visible = false; lineM.visible = false; $('fishui').style.display = 'none'; }
+function stopFishing() { freeFish(); fsh.st = mode === 'eva' && P.distanceTo(anchor) > 30 ? 'home' : 'idle'; }
 function castLine() {
   if (speed > 6 || tj || warpT > 0) { say('Stop the ship first. Fish scatter from a moving hull.'); return; }
-  cam.updateMatrixWorld(true); rodTip.getWorldPosition(fsh.lure); fsh.v.copy(fwdV).multiplyScalar(75); fsh.t = 1.5; fsh.st = 'cast'; fsh.aimF = fsh.aim; lureM.visible = true; lineM.visible = true; lineM.material.color.setHex(0xd8f6ff); whoosh(0.07);
+  cam.updateMatrixWorld(true); rodTip.getWorldPosition(fsh.lure); fsh.v.copy(fwdV).multiplyScalar(90); fsh.t = 1.7; fsh.st = 'cast'; fsh.aimF = fsh.aim; lureM.visible = true; lineM.visible = true; lineM.material.color.setHex(0xd8f6ff); whoosh(0.07);
 }
 function hookFish(f) {
   if (fsh.fish && fsh.fish !== f) fsh.fish.state = 'free';
-  fsh.fish = f; f.state = 'hooked'; fsh.st = 'fight'; fsh.fd.copy(f.lp).sub(P); fsh.dist = Math.max(10, fsh.fd.length()); fsh.fd.normalize(); fsh.wd.copy(fsh.fd);
-  fsh.ten = 0.3; fsh.stam = 4 + f.o.L * f.sz * 0.33; fsh.bt = 2.6; fsh.burst = 0; fsh.over = 0; fsh.tired = false; fsh.clean = true;
-  $('fishui').style.display = 'block'; $('fname').textContent = (f.gold ? 'Golden ' : '') + f.o.name;
-  say('Fish on! Hold to reel. Ease off when the line turns red.'); beep(880, 0.03);
+  fsh.fish = f; f.state = 'hooked'; fsh.st = 'ride'; fsh.len = clamp(f.lp.distanceTo(P), 15, 70);
+  fsh.ten = 0.3; fsh.stamMax = fsh.stam = f.o.stam * f.sz; fsh.sT = 2.6; fsh.tell = 0; fsh.surge = 0; fsh.over = 0; fsh.clean = true; fsh.taut = true; rndDir(fsh.wd);
+  $('fishui').style.display = 'block'; $('fname').textContent = nameOf(f);
+  say('Hooked! It is running with you. Thrust against it to tire it. Go slack when its lights flash.'); beep(880, 0.03);
 }
 function lineSnap(msg) { say(msg); beep(140, 0.04); stopFishing(); }
+function landFish(f) {
+  const L = f.o.L * f.sz, len = L.toFixed(1), kg = L * L * L * Math.min(f.o.w, 0.3) * f.o.h * 420, wt = kg > 1000 ? (kg / 1000).toFixed(1) + ' t' : Math.round(kg) + ' kg';
+  const nm = nameOf(f), rec = !(fz.dex[f.o.name] >= L); if (rec) fz.dex[f.o.name] = L;
+  const pts = Math.round(L * 10 * (f.gold ? 5 : 1) * (fsh.clean ? 1.5 : 1)); fz.total += pts; if (fz.derby) fz.score += pts;
+  catches.push([nm, len]); drawCatch(); say('Landed: ' + nm + ', ' + len + ' m, ' + wt + '. +' + pts + (fsh.clean ? ' clean catch' : '') + (rec ? '. New record!' : '.')); beep(990, 0.03);
+  if (!fz.done && Object.keys(fz.dex).length >= SPECIES.length) { fz.done = true; say('Fishdex complete. Every species landed.'); }
+  freeFish(); fsh.st = 'idle';
+}
 const fa = { label: '', fn: null }, noopF = function () {};
 function fishAct() {
-  if (fsh.st === 'idle') { fa.label = fsh.aim ? 'Cast at ' + (fsh.aim.gold ? 'Golden ' : '') + fsh.aim.o.name : 'Cast line'; fa.fn = castLine; }
-  else if (fsh.st === 'cast') { fa.label = 'Line out'; fa.fn = noopF; }
-  else if (fsh.st === 'float') { fa.label = 'Reel in'; fa.fn = stopFishing; }
-  else { fa.label = fsh.tired ? 'Hold to reel it in' : 'Hold to reel'; fa.fn = noopF; }
+  const s = fsh.st; fa.fn = noopF;
+  if (s === 'idle') { fa.label = fsh.aim ? 'Cast at ' + nameOf(fsh.aim) : 'Cast line'; fa.fn = castLine; }
+  else if (s === 'cast') fa.label = 'Line out';
+  else if (s === 'float') { fa.label = 'Reel in'; fa.fn = stopFishing; }
+  else if (s === 'ride') fa.label = 'Hold to shorten the line';
+  else if (s === 'tow') fa.label = 'Hold to winch back to the ship';
+  else fa.label = 'Winching back to the ship';
   return fa;
+}
+function rideStep(dt, reel) {
+  const f = fsh.fish, o = f.o;
+  fsh.sT -= dt;
+  if (fsh.surge > 0) fsh.surge -= dt;
+  else if (fsh.tell > 0) { fsh.tell -= dt; if (fsh.tell <= 0) fsh.surge = o.sL; }
+  else if (fsh.sT <= 0) { fsh.tell = 0.7; fsh.sT = o.sE * (0.7 + R() * 0.6) + o.sL + 0.7; rndDir(fsh.wd); beep(520, 0.02); }
+  f.uG.value = fsh.tell > 0 ? 1 : fsh.surge > 0 ? 0.45 : 0;
+  tC.copy(f.lp).sub(P); let d = tC.length(); fsh.n.copy(tC).multiplyScalar(1 / Math.max(d, 0.001));
+  const taut = fsh.taut, il = evaIn.length(), resist = taut && il > 0.01 ? clamp(-evaIn.dot(fsh.n) / Math.max(il, 1), 0, 1) : 0;
+  if (reel && fsh.surge <= 0) fsh.len = Math.max(10 + f.sz * o.L * 0.3, fsh.len - 7 * dt);
+  const load = clamp(resist + (reel ? 0.5 : 0), 0, 1.2), sf = clamp(fsh.stam / fsh.stamMax, 0, 1);
+  tD.copy(fsh.n).applyQuaternion(shipQuat).addScaledVector(fsh.wd, 0.55);
+  tC.copy(f.wp).sub(shipC); if (tC.length() < 60 + o.L) tD.addScaledVector(tC.normalize(), 1.5);
+  f.dir.lerp(tD.normalize(), Math.min(1, dt * o.turn)).normalize();
+  const spd = o.run * (0.3 + 0.7 * sf) * (fsh.surge > 0 ? 1.7 : 1) * (1 - 0.45 * Math.min(load, 1));
+  f.wp.addScaledVector(f.dir, spd * dt); f.lp.copy(f.wp).sub(shipPos).applyQuaternion(invQ);
+  if (taut) fsh.stam -= dt * (0.15 + load);
+  fsh.ten += ((taut ? 0.2 + 0.5 * load + (fsh.surge > 0 ? 0.55 : 0) : 0.05) - fsh.ten) * Math.min(1, dt * 3.2);
+  if (fsh.ten > 0.9) fsh.clean = false;
+  if (fsh.ten > 1) { fsh.over += dt; if (fsh.over > 0.8) { lineSnap('The line snapped. Stop fighting when its lights flash.'); return; } } else fsh.over = Math.max(0, fsh.over - dt);
+  tC.copy(f.lp).sub(P); d = tC.length(); fsh.taut = d > fsh.len - 0.05;
+  if (d > fsh.len) {
+    fsh.n.copy(tC).multiplyScalar(1 / d); P.addScaledVector(fsh.n, d - fsh.len);
+    if (inHull(P)) { P.addScaledVector(fsh.n, -(d - fsh.len)); fsh.len = d; }
+    tD.copy(f.dir).applyQuaternion(invQ); const fv = spd * tD.dot(fsh.n), vn = vel.dot(fsh.n); if (vn < fv) vel.addScaledVector(fsh.n, fv - vn);
+  }
+  if (P.distanceTo(anchor) > 2600) { lineSnap('It dragged you past the end of your safety line. Line cut.'); return; }
+  if (fsh.stam <= 0) { fsh.st = 'tow'; f.uG.value = 0; say(nameOf(f) + ' is spent. Hold ' + (isTouch ? 'Use' : 'E') + ' to winch back to the ship.'); beep(880, 0.03); }
+}
+function winch(dt) { tC.copy(anchor).sub(P); const d = tC.length(); if (d > 1) vel.lerp(tC.multiplyScalar(Math.min(45, 8 + d * 0.2) / d), Math.min(1, dt * 2.5)); return d; }
+function towStep(dt, reel) {
+  const f = fsh.fish, d = reel ? winch(dt) : P.distanceTo(anchor);
+  tD.copy(f.lp).sub(P); const fd = tD.length(), want = 6 + f.sz * f.o.L * 0.5;
+  if (fd > want) f.lp.addScaledVector(tD, -(fd - want) / fd * Math.min(1, dt * 6));
+  f.wp.copy(f.lp).applyQuaternion(shipQuat).add(shipPos);
+  tD.copy(P).sub(f.lp).applyQuaternion(shipQuat); if (tD.lengthSq() > 0.01) f.dir.lerp(tD.normalize(), Math.min(1, dt * 2)).normalize();
+  fsh.ten += (0.25 - fsh.ten) * Math.min(1, dt * 3);
+  if (d < 14) landFish(f);
 }
 function fishingStep(dt) {
   rod.visible = mode === 'eva';
-  if (mode !== 'eva') { if (fsh.st !== 'idle') stopFishing(); return; }
+  if (mode !== 'eva') { if (fsh.st !== 'idle') { freeFish(); fsh.st = 'idle'; } return; }
   if (fsh.st === 'idle') {
     fsh.aim = null; let bd = 1e9;
     for (const f of fishes) {
-      if (!f.on || !f.m.visible) continue; tC.copy(f.lp).sub(P); const d = tC.length(); if (d > 150 || d < 2) continue;
+      if (!f.on || !f.m.visible) continue; tC.copy(f.lp).sub(P); const d = tC.length(); if (d > 170 + f.o.L || d < 2) continue;
       const ang = Math.acos(clamp(tC.dot(fwdV) / d, -1, 1)); if (ang < Math.atan((f.sz * f.o.L * 0.4 + 3) / d) + 0.035 && d < bd) { bd = d; fsh.aim = f; }
     }
     return;
   }
   const reel = keys.KeyE || (mouseDown && !isTouch);
+  if (fsh.st === 'home') { if (winch(dt) < 26) { fsh.st = 'idle'; say('Back on the tether.'); } return; }
   if (fsh.st === 'cast') {
-    const a = fsh.aimF; if (a && a.on) { tC.copy(a.lp).sub(fsh.lure).normalize().multiplyScalar(75); fsh.v.lerp(tC, Math.min(1, dt * 7)); }
+    const a = fsh.aimF; if (a && a.on) { tC.copy(a.lp).sub(fsh.lure).normalize().multiplyScalar(90); fsh.v.lerp(tC, Math.min(1, dt * 7)); }
     fsh.lure.addScaledVector(fsh.v, dt); fsh.t -= dt;
     for (const f of fishes) if (f.on && f.lp.distanceTo(fsh.lure) < 1.5 + f.sz * f.o.L * 0.3) { hookFish(f); break; }
     if (fsh.st === 'cast' && fsh.t <= 0) { fsh.st = 'float'; fsh.t = 10; }
   } else if (fsh.st === 'float') {
     fsh.t -= dt; fsh.lure.y += Math.sin(time * 2.5) * 0.004;
-    if (!fsh.fish) { let bd = 120, bf = null; for (const f of fishes) if (f.on && f.state === 'free') { const d = f.lp.distanceTo(fsh.lure); if (d < bd) { bd = d; bf = f; } } if (bf) { bf.state = 'lured'; fsh.fish = bf; } }
+    if (!fsh.fish) { let bd = 160, bf = null; for (const f of fishes) if (f.on && f.state === 'free') { const d = f.lp.distanceTo(fsh.lure); if (d < bd) { bd = d; bf = f; } } if (bf) { bf.state = 'lured'; fsh.fish = bf; } }
     else if (fsh.fish.lp.distanceTo(fsh.lure) < 2 + fsh.fish.sz * fsh.fish.o.L * 0.3) hookFish(fsh.fish);
     if (fsh.st === 'float' && fsh.t <= 0) { say('Nothing took it. Try casting straight at one.'); stopFishing(); return; }
-  } else if (fsh.st === 'fight') {
-    const f = fsh.fish, L = f.o.L * f.sz, big = clamp(L / 40, 0.1, 1);
-    fsh.bt -= dt;
-    if (fsh.burst > 0) fsh.burst -= dt;
-    else if (fsh.bt <= 0 && fsh.stam > 0) { fsh.burst = 0.8 + R() * 0.9; fsh.bt = fsh.burst + 1.6 + R() * 2.2; rndDir(fsh.wd); if (fsh.wd.dot(fsh.fd) < 0) fsh.wd.negate(); beep(520, 0.02); }
-    const B = fsh.burst > 0 ? 1 : 0;
-    fsh.ten += ((reel ? 0.5 + big * 0.12 : 0.1) + B * (reel ? 0.62 : 0.12) - fsh.ten) * Math.min(1, dt * 3.2);
-    if (fsh.ten > 1) { fsh.over += dt; if (fsh.over > 0.8) { lineSnap('The line snapped. Ease off when it runs.'); return; } } else fsh.over = Math.max(0, fsh.over - dt);
-    fsh.stam -= dt * (reel ? 1 : 0.2) * (fsh.ten > 0.3 ? 1 : 0.3);
-    if (fsh.stam <= 0 && !fsh.tired) { fsh.tired = true; say('It is tiring. Bring it in.'); }
-    if (reel && fsh.ten <= 1) fsh.dist -= (fsh.tired ? 18 : 8) * (B ? 0.2 : 1) * dt; else fsh.dist += (B ? 15 : fsh.tired ? 0 : 3) * dt;
-    if (fsh.dist > 160) { lineSnap('It ran out all your line.'); return; }
-    if (B) fsh.fd.lerp(fsh.wd, Math.min(1, dt * 0.9)).normalize();
-    f.lp.copy(P).addScaledVector(fsh.fd, fsh.dist); f.wp.copy(f.lp).applyQuaternion(shipQuat).add(shipPos);
-    tC.copy(B || !reel ? fsh.wd : fsh.fd).applyQuaternion(shipQuat); if (reel && !B) tC.negate(); f.dir.lerp(tC, Math.min(1, dt * 4)).normalize();
-    vel.addScaledVector(fsh.fd, (B ? 1.4 : 0.3) * big * 3 * dt);
+  } else if (fsh.st === 'ride') rideStep(dt, reel);
+  else if (fsh.st === 'tow') towStep(dt, reel);
+  const f = fsh.fish;
+  if (f && (fsh.st === 'ride' || fsh.st === 'tow')) {
     fsh.lure.copy(f.lp);
-    if (reel) { fsh.click -= dt; if (fsh.click <= 0) { fsh.click = 0.11; beep(1100, 0.005); } }
-    if (fsh.ten > 0.9) fsh.clean = false; const fu = $('ften'); fu.style.width = (Math.min(fsh.ten, 1) * 100) + '%'; fu.style.background = fsh.ten > 0.85 ? '#ff5a48' : fsh.ten > 0.62 ? '#ffb347' : '#7fe0c0';
-    const dtx = Math.round(fsh.dist) + ' m'; if ($('fdist').textContent !== dtx) $('fdist').textContent = dtx;
+    const fu = $('ften'); fu.style.width = (Math.min(fsh.ten, 1) * 100) + '%'; fu.style.background = fsh.ten > 0.85 ? '#ff5a48' : fsh.ten > 0.62 ? '#ffb347' : '#7fe0c0';
+    const dtx = fsh.st === 'ride' ? 'Stamina ' + Math.round(clamp(fsh.stam / fsh.stamMax, 0, 1) * 100) + '%   Line ' + Math.round(fsh.len) + ' m' : 'Spent   Ship ' + Math.round(P.distanceTo(anchor)) + ' m';
+    if ($('fdist').textContent !== dtx) $('fdist').textContent = dtx;
     lineM.material.color.setHex(fsh.ten > 0.85 ? 0xff5a48 : 0xd8f6ff);
-    if (fsh.dist < 5 + L * 0.5) {
-      const len = L.toFixed(1), kg = L * L * L * f.o.w * f.o.h * 420, wt = kg > 1000 ? (kg / 1000).toFixed(1) + ' t' : Math.round(kg) + ' kg';
-      const nm = (f.gold ? 'Golden ' : '') + f.o.name, rec = !(fz.dex[f.o.name] >= L); if (rec) fz.dex[f.o.name] = L;
-      const pts = Math.round(L * 10 * (f.gold ? 5 : 1) * (fsh.clean ? 1.5 : 1)); fz.total += pts; if (fz.derby) fz.score += pts;
-      catches.push([nm, len]); drawCatch(); say('Caught: ' + nm + ', ' + len + ' m, ' + wt + '. +' + pts + (fsh.clean ? ' clean catch' : '') + (rec ? '. New record!' : '.')); beep(990, 0.03);
-      if (!fz.done && Object.keys(fz.dex).length >= SPECIES.length) { fz.done = true; say('Fishdex complete. Every species landed.'); }
-      f.tgt.copy(f.wp).addScaledVector(f.dir, 200); stopFishing(); f.t = 8; return;
-    }
+    fsh.prog = 1 - clamp(fsh.stam / fsh.stamMax, 0, 1);
   }
+  if (fsh.st === 'idle' || fsh.st === 'home') return;
   lureM.position.copy(fsh.lure);
   cam.updateMatrixWorld(true); rodTip.getWorldPosition(tC); lineM.position.copy(tC); lineM.lookAt(fsh.lure); lineM.scale.set(1, 1, Math.max(tC.distanceTo(fsh.lure), 0.01));
-  fsh.prog = fsh.st === 'fight' ? 1 - fsh.dist / 160 : 0;
 }
 const fM4 = new THREE.Matrix4(), fQ = new THREE.Quaternion(), ZERO = v3(0, 0, 0), UPV = v3(0, 1, 0);
-let fishSpT = 0;
+let fishSpT = 0, fishInit = false;
 function fishStep(dt) {
+  if (!fishInit) { fishInit = true; for (let i = 0; i < 7; i++) spawnFish(true); }
   derbyStep(dt); fishSpT -= dt;
-  if (fishSpT <= 0) { fishSpT = 0.8; if (speed < 25 && !tj && warpT <= 0) { let c = 0; for (const f of fishes) if (f.on && f.lp.lengthSq() < 520 * 520) c++; if (c < (fz.derby ? 13 : 9)) spawnFish(false); } }
+  if (fishSpT <= 0) { fishSpT = 0.8; if (speed < 25 && !tj && warpT <= 0) { let c = 0; for (const f of fishes) if (f.on && f.lp.lengthSq() < 700 * 700) c++; if (c < (fz.derby ? 14 : 10)) spawnFish(false); } }
   for (const f of fishes) {
     if (!f.on) continue; const o = f.o;
     if (f.state !== 'hooked') {
       tC.copy(f.wp).sub(shipC); const ds = tC.length();
-      if (ds > 950 && f.state === 'free') { f.on = false; f.m.visible = false; continue; }
+      if (ds > 1700 && f.state === 'free') { f.on = false; f.m.visible = false; continue; }
       if (f.state === 'lured') f.tgt.copy(fsh.lure).applyQuaternion(shipQuat).add(shipPos);
       else {
         f.t -= dt;
-        if (ds < 24 + o.L * 0.6) { f.tgt.copy(f.wp).addScaledVector(tC.normalize(), 140); f.t = 3; }
-        else if (f.t <= 0 || f.wp.distanceTo(f.tgt) < o.L) { rndDir(f.tgt).multiplyScalar(20 + R() * 110).add(f.home); f.t = 6 + R() * 8; }
+        if (ds < 24 + o.L * 0.6) { f.tgt.copy(f.wp).addScaledVector(tC.normalize(), 140 + o.L); f.t = 3; }
+        else if (f.t <= 0 || f.wp.distanceTo(f.tgt) < o.L) { rndDir(f.tgt).multiplyScalar(20 + R() * 110 + o.L).add(f.home); f.t = 6 + R() * 8; }
       }
       tD.copy(f.tgt).sub(f.wp); if (tD.lengthSq() > 0.01) f.dir.lerp(tD.normalize(), Math.min(1, dt * (f.state === 'lured' ? 2.5 : 0.9))).normalize();
       f.wp.addScaledVector(f.dir, o.sp * (f.state === 'lured' ? 2.2 : 1) * dt);
+      f.lp.copy(f.wp).sub(shipPos).applyQuaternion(invQ);
     }
     f.k = Math.min(1, f.k + dt * 0.5);
-    f.lp.copy(f.wp).sub(shipPos).applyQuaternion(invQ);
-    f.m.visible = f.lp.lengthSq() < 590 * 590;
+    f.m.visible = f.lp.lengthSq() < 2800 * 2800;
     if (!f.m.visible) continue;
     f.m.position.copy(f.lp); fM4.lookAt(f.dir, ZERO, UPV); fQ.setFromRotationMatrix(fM4); f.m.quaternion.copy(invQ).multiply(fQ); f.m.scale.setScalar(f.sz * Math.max(f.k, 0.001));
-    f.uP.x += dt * (f.state === 'hooked' ? 9 : 2.2 + 8 / o.L);
+    f.uP.x += dt * (f.state === 'hooked' ? (fsh.st === 'tow' ? 1.2 : 8) : 2.2 + 8 / o.L);
   }
 }
 
@@ -1256,7 +1369,7 @@ function hudExtra(st) {
     s += '\nTarget: ' + (target ? target.n : 'none - J jumps blind'); s += '\n' + (gz.on ? 'Gauntlet wave ' + gz.wave + '   Score ' + gz.score + '   x' + gz.combo : (isTouch ? 'Waves' : 'G') + ' starts the alien gauntlet' + (gz.best ? '   Best ' + gz.best : ''));
     return s;
   }
-  if (mode === 'eva') return st + '\nFish caught ' + catches.length + (fz.derby ? '\nDerby ' + Math.ceil(fz.t) + ' s   Score ' + fz.score : '');
+  if (mode === 'eva') return (fsh.st === 'ride' || fsh.st === 'tow' || fsh.st === 'home' ? 'Off the tether\nShip ' + Math.round(P.distanceTo(anchor)) + ' m away\nThrust to steer' : st) + '\nFish caught ' + catches.length + (fz.derby ? '\nDerby ' + Math.ceil(fz.t) + ' s   Score ' + fz.score : '');
   return st;
 }
 function extras(dt) {
@@ -1436,7 +1549,7 @@ function gamesStep(dt) {
 }
 function derbyStart() {
   if (fz.derby) { say('Derby already running. ' + Math.ceil(fz.t) + ' seconds left.'); return; }
-  fz.derby = true; fz.t = 120; fz.score = 0; say('Derby on. Two minutes. Cycle the airlock and get out there.'); beep(880, 0.03);
+  fz.derby = true; fz.t = 240; fz.score = 0; say('Derby on. Four minutes. Cycle the airlock and get out there.'); beep(880, 0.03);
 }
 function derbyStep(dt) {
   if (!fz.derby) return; fz.t -= dt;
