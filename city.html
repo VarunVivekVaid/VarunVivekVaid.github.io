@@ -27,6 +27,12 @@ canvas{display:block}
 #start .links a{color:#19f0ff;font-size:.95rem;letter-spacing:.22em;text-transform:uppercase;text-decoration:none;border-bottom:1px solid rgba(25,240,255,.5);padding-bottom:.2rem}
 #touch{position:fixed;right:1rem;bottom:1.2rem;display:none;grid-template-columns:auto auto;gap:.6rem;justify-items:end}
 .tb{pointer-events:auto;min-width:4.4rem;height:3.6rem;border:1px solid #19f0ff;background:rgba(5,8,20,.55);color:#19f0ff;font:600 .85rem Rajdhani,sans-serif;letter-spacing:.14em;text-transform:uppercase;border-radius:6px}
+#stat{color:#fcee0a;text-shadow:0 0 8px rgba(252,238,10,.55)}
+#zone{color:#fcee0a;text-shadow:none;background:rgba(0,0,0,.85);border-left:4px solid #ff2a6d;padding:.35rem .8rem;letter-spacing:.3em}
+#big{color:#000;background:#fcee0a;padding:.35rem 2.4rem;text-shadow:none;transform:translateX(-50%) skewX(-12deg);box-shadow:9px 9px 0 #ff2a6d,-6px -6px 0 rgba(25,240,255,.9);transition:opacity .25s}
+#prompt{border-color:#fcee0a;color:#fcee0a;text-shadow:0 0 8px rgba(252,238,10,.7);box-shadow:0 0 18px rgba(252,238,10,.3)}
+#start h1{text-shadow:0 0 14px #ff2bd6,0 0 44px #ff2bd6,5px 0 0 rgba(25,240,255,.85),-5px 0 0 rgba(252,238,10,.8)}
+#go{border-color:#fcee0a;box-shadow:0 0 22px rgba(252,238,10,.45),inset 0 0 14px rgba(252,238,10,.25)}
 </style>
 </head>
 <body>
@@ -108,7 +114,7 @@ const moon = (function () {
 const MOOND = new THREE.Vector3(-0.42, 0.34, 0.84).normalize();
 
 // ---------- city data ----------
-const PAL = { warm: [1.0, 0.72, 0.42], cool: [0.75, 0.85, 1.0], cyan: [0.15, 0.9, 1.0], mag: [1.0, 0.2, 0.75], teal: [0.1, 0.75, 0.65], yel: [1.0, 0.85, 0.25] };
+const PAL = { warm: [1.0, 0.72, 0.42], cool: [0.75, 0.85, 1.0], cyan: [0.15, 0.9, 1.0], mag: [1.0, 0.2, 0.75], teal: [0.1, 0.75, 0.65], yel: [1.0, 0.88, 0.1], org: [1.0, 0.45, 0.12] };
 const CELL = 80, STRIPZ = 40;
 function zoneOf(x, z) {
   const d = Math.hypot(x, z);
@@ -118,92 +124,195 @@ function zoneOf(x, z) {
   return 'city';
 }
 const ZNAME = { drowned: 'THE DROWNED QUARTER', strip: 'NEON STRIP', spire: 'THE SPIRE', city: 'VAID CITY' };
-const B = [], S = [], WARN = [];
-function addB(x, y0, z, sx, sy, sz, o) { const b = { x: x, y: y0 + sy / 2, z: z, sx: sx, sy: sy, sz: sz, rx: 0, rz: 0, tint: PAL.warm, trimc: PAL.mag, seed: R() * 100, lit: 0.4, trim: 0, corner: 0 }; if (o) Object.assign(b, o); B.push(b); return b; }
-function addS(x, y, z, ry, w, h, vert) {
+const MEGA = [[-1000, -600], [1000, -1000], [-1400, 600], [1320, 1000], [-600, -1400], [1480, -1560]];
+const B = [], S = [], WARN = [], ROOFS = [], CAB = [], LAN = [];
+const CL = { sty: 4, nc: true, lit: 0, trim: 0 };
+function addB(x, y0, z, sx, sy, sz, o) { const b = { x: x, y: y0 + sy / 2, z: z, sx: sx, sy: sy, sz: sz, rx: 0, rz: 0, tint: PAL.warm, trimc: PAL.mag, seed: R() * 100, lit: 0.4, trim: 0, corner: 0, sty: 0, nc: false }; if (o) Object.assign(b, o); B.push(b); return b; }
+function addS(x, y, z, ry, w, h, vert, video) {
   const i = Math.floor(R() * 16);
   const uv = vert ? [i / 16, 0, 1 / 16, 0.5] : [(i % 4) * 0.25, 1 - (Math.floor(i / 4) + 1) * 0.125, 0.25, 0.125];
-  S.push({ x: x, y: y, z: z, ry: ry, w: w, h: h, uv: uv, ph: R() * 100 });
+  S.push({ x: x, y: y, z: z, ry: ry, w: w, h: h, uv: uv, ph: video ? -(1 + R() * 15) : R() * 100 });
+}
+function inMega(x, z) { for (const m of MEGA) if (Math.abs(x - m[0]) < 135 && Math.abs(z - m[1]) < 135) return true; return false; }
+function cable(x1, y1, z1, x2, y2, z2, lan) {
+  const n = 6, sag = 1.5 + R() * 4; let px = x1, py = y1, pz = z1;
+  for (let k = 1; k <= n; k++) { const t = k / n, qx = x1 + (x2 - x1) * t, qy = y1 + (y2 - y1) * t - Math.sin(Math.PI * t) * sag, qz = z1 + (z2 - z1) * t; CAB.push(px, py, pz, qx, qy, qz); if (lan && k < n) LAN.push(qx, qy - 0.5, qz, lan[0] * 1.6, lan[1] * 1.6, lan[2] * 1.6, 0.55); px = qx; py = qy; pz = qz; }
 }
 // the Spire
 (function () {
-  const o = { tint: PAL.cool, trimc: PAL.cyan, lit: 0.62, trim: 1, corner: 1 };
-  addB(0, 0, 0, 150, 260, 150, o); addB(0, 260, 0, 116, 220, 116, o); addB(0, 480, 0, 86, 200, 86, o); addB(0, 680, 0, 56, 160, 56, o); addB(0, 840, 0, 26, 100, 26, { tint: PAL.mag, trimc: PAL.mag, lit: 0.9, trim: 1, corner: 1 });
+  const o = { tint: PAL.cool, trimc: PAL.cyan, lit: 0.62, trim: 1, corner: 1, sty: 2 };
+  addB(0, 0, 0, 150, 260, 150, o); addB(0, 260, 0, 116, 220, 116, o); addB(0, 480, 0, 86, 200, 86, o); addB(0, 680, 0, 56, 160, 56, o); addB(0, 840, 0, 26, 100, 26, { tint: PAL.mag, trimc: PAL.mag, lit: 0.9, trim: 1, corner: 1, sty: 2 });
   WARN.push([0, 945, 0]);
 })();
+// megabuildings
+for (const m of MEGA) {
+  const cx = m[0], cz = m[1], h = 480 + R() * 180, o = { tint: pick([PAL.warm, PAL.yel, PAL.mag]), trimc: PAL.yel, lit: 0.72, trim: 1, corner: 0, sty: 1 };
+  addB(cx, 0, cz, 236, h * 0.55, 236, o); addB(cx, h * 0.55, cz, 196, h * 0.27, 196, o); addB(cx, h * 0.82, cz, 150, h * 0.18, 150, o);
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) { const th = h * 0.9 + R() * 50; addB(cx + sx * 112, 0, cz + sz * 112, 44, th, 44, Object.assign({}, o, { corner: 1, trimc: pick([PAL.mag, PAL.cyan]) })); WARN.push([cx + sx * 112, th + 2, cz + sz * 112]); }
+  for (let y = 70; y < h * 0.55 - 10; y += 80 + R() * 30) addB(cx, y, cz, 246, 5, 246, { sty: 4, trim: 1, trimc: PAL.yel, nc: true });
+  for (let f = 0; f < 4; f++) { if (R() > 0.8) continue; const ax = f < 2, sg = f % 2 ? 1 : -1, w = 84 + R() * 36, hh = w * 1.4, y = 60 + R() * 60 + hh / 2; if (ax) addS(cx + sg * 119, y, cz, sg > 0 ? Math.PI / 2 : -Math.PI / 2, w, hh, true, true); else addS(cx, y, cz + sg * 119, sg > 0 ? 0 : Math.PI, w, hh, true, true); }
+  addS(cx, h + 22, cz, pick([0, Math.PI / 2]), 130, 32.5, false, false);
+  ROOFS.push([cx, h, cz, 140, 140], [cx, h, cz, 140, 140], [cx, h * 0.82, cz - 85, 180, 20], [cx, h * 0.55, cz + 105, 220, 16]);
+}
+// lots
+const LOT = {};
 for (let i = -25; i < 25; i++) for (let j = -25; j < 25; j++) {
   const cx = (i + 0.5) * CELL, cz = (j + 0.5) * CELL, d = Math.hypot(cx, cz), zn = zoneOf(cx, cz);
-  if (d < 175) continue;
+  if (d < 175 || inMega(cx, cz)) continue;
   if (cz === STRIPZ && cx > 250 && cx < 1960) continue;
   if (Math.abs(cx) < 400 && cz < -250 && cz > -420) continue;
-  const w = 36 + R() * 24, dp = 36 + R() * 24, ox = (R() - 0.5) * (58 - w), oz = (R() - 0.5) * (58 - dp);
-  let h, o = {};
-  if (zn === 'spire') { h = (150 + R() * R() * 520) * (1.15 - d / 900); o.tint = pick([PAL.cool, PAL.cool, PAL.cyan, PAL.warm]); o.lit = 0.35 + R() * 0.35; o.trim = R() < 0.6 ? 1 : 0; o.corner = R() < 0.35 ? 1 : 0; o.trimc = pick([PAL.cyan, PAL.mag]); }
-  else if (zn === 'strip') { h = 90 + R() * 190; o.tint = pick([PAL.mag, PAL.cyan, PAL.warm, PAL.warm]); o.lit = 0.4 + R() * 0.4; o.trim = R() < 0.75 ? 1 : 0; o.corner = R() < 0.5 ? 1 : 0; o.trimc = pick([PAL.mag, PAL.cyan, PAL.yel]); }
-  else if (zn === 'drowned') { h = 22 + R() * 110; o.tint = pick([PAL.teal, PAL.teal, PAL.warm]); o.lit = 0.06 + R() * 0.16; o.trim = R() < 0.2 ? 1 : 0; o.trimc = PAL.teal; o.rx = (R() - 0.5) * 0.16; o.rz = (R() - 0.5) * 0.16; }
-  else { h = 30 + R() * R() * 200; if (R() < 0.05) h = 300 + R() * 160; o.tint = pick([PAL.warm, PAL.warm, PAL.cool, PAL.cyan, PAL.mag]); o.lit = 0.2 + R() * 0.4; o.trim = R() < 0.3 ? 1 : 0; o.corner = R() < 0.12 ? 1 : 0; o.trimc = pick([PAL.mag, PAL.cyan]); }
-  const y0 = zn === 'drowned' ? -(6 + R() * 22) : 0, x = cx + ox, z = cz + oz;
-  if (zn !== 'drowned' && R() < 0.5) addB(x, 0, z, Math.min(w + 12, 60), 12 + R() * 22, Math.min(dp + 12, 60), Object.assign({}, o, { trim: 1, corner: 0 }));
-  addB(x, y0, z, w, h, dp, o);
-  let top = y0 + h;
-  if (h > 120 && R() < 0.45) { const e = h * (0.18 + R() * 0.2); addB(x, top, z, w * 0.66, e, dp * 0.66, o); top += e; }
-  if (h > 100 && R() < 0.3) { const e = 18 + R() * 40; addB(x + (R() - 0.5) * w * 0.3, top, z + (R() - 0.5) * dp * 0.3, 2.2, e, 2.2, { lit: 0, trim: 0 }); top += e; WARN.push([x, top + 1.5, z]); }
-  else if (h > 180) WARN.push([x + w * 0.3, top + 1.5, z + dp * 0.3]);
+  const w = 36 + R() * 22, dp = 36 + R() * 22; let h;
+  if (zn === 'spire') h = (150 + R() * R() * 520) * (1.15 - d / 900); else if (zn === 'strip') h = 90 + R() * 190; else if (zn === 'drowned') h = 22 + R() * 110; else { h = 30 + R() * R() * 200; if (R() < 0.05) h = 300 + R() * 160; }
+  LOT[i + ',' + j] = { i: i, j: j, x: cx + (R() - 0.5) * (58 - w), z: cz + (R() - 0.5) * (58 - dp), w: w, dp: dp, h: h, zn: zn, y0: zn === 'drowned' ? -(6 + R() * 22) : 0, cz: cz };
+}
+for (const key in LOT) {
+  const l = LOT[key], x = l.x, z = l.z, w = l.w, dp = l.dp, h = l.h, zn = l.zn, y0 = l.y0, o = {};
+  if (zn === 'spire') { o.tint = pick([PAL.cool, PAL.cool, PAL.cyan, PAL.warm]); o.lit = 0.35 + R() * 0.35; o.trim = R() < 0.6 ? 1 : 0; o.corner = R() < 0.35 ? 1 : 0; o.trimc = pick([PAL.cyan, PAL.mag]); o.sty = R() < 0.7 ? 2 : 0; }
+  else if (zn === 'strip') { o.tint = pick([PAL.yel, PAL.warm, PAL.mag, PAL.cyan, PAL.org]); o.lit = 0.4 + R() * 0.4; o.trim = R() < 0.75 ? 1 : 0; o.corner = R() < 0.5 ? 1 : 0; o.trimc = pick([PAL.mag, PAL.cyan, PAL.yel, PAL.yel]); o.sty = R() < 0.65 ? 1 : 0; }
+  else if (zn === 'drowned') { o.tint = pick([PAL.teal, PAL.teal, PAL.warm]); o.lit = 0.06 + R() * 0.16; o.trim = R() < 0.2 ? 1 : 0; o.trimc = PAL.teal; o.rx = (R() - 0.5) * 0.16; o.rz = (R() - 0.5) * 0.16; o.sty = 3; }
+  else { o.tint = pick([PAL.warm, PAL.warm, PAL.cool, PAL.cyan, PAL.mag, PAL.yel]); o.lit = 0.2 + R() * 0.4; o.trim = R() < 0.3 ? 1 : 0; o.corner = R() < 0.12 ? 1 : 0; o.trimc = pick([PAL.mag, PAL.cyan, PAL.yel]); o.sty = pick([0, 0, 1, 1, 2]); }
+  const r = R(); let top = y0 + h, plain = false;
+  if (zn === 'drowned') { addB(x, y0, z, w, h, dp, o); ROOFS.push([x, top, z, w * 0.6, dp * 0.6]); }
+  else if (h > 140 && r < 0.2) { addB(x, 0, z, w, h * 0.45, dp, o); addB(x, h * 0.45, z, w * 0.76, h * 0.3, dp * 0.76, o); addB(x, h * 0.75, z, w * 0.5, h * 0.25, dp * 0.5, o); ROOFS.push([x, h, z, w * 0.5, dp * 0.5], [x + w * 0.44, h * 0.45, z, w * 0.1, dp * 0.8]); }
+  else if (h > 120 && r < 0.34) {
+    const tw = w * 0.42, h2 = h * (0.7 + R() * 0.25); addB(x, 0, z, Math.min(w + 8, 60), 14, Math.min(dp + 8, 60), Object.assign({}, o, { trim: 1, corner: 0 }));
+    addB(x - w * 0.29, 0, z, tw, h, dp, o); addB(x + w * 0.29, 0, z, tw, h2, dp, o); addB(x, h2 * (0.45 + R() * 0.3), z, w * 0.2, 6, dp * 0.5, { tint: PAL.warm, lit: 0.9, trim: 1, trimc: o.trimc });
+    ROOFS.push([x - w * 0.29, h, z, tw, dp], [x + w * 0.29, h2, z, tw, dp]);
+  }
+  else if (h > 90 && r < 0.46) { addB(x, 0, z, w * 0.68, h * 0.74, dp * 0.68, o); addB(x, h * 0.74, z, w, h * 0.26, dp, o); ROOFS.push([x, h, z, w, dp]); }
+  else {
+    plain = true;
+    if (R() < 0.5) addB(x, 0, z, Math.min(w + 12, 60), 12 + R() * 22, Math.min(dp + 12, 60), Object.assign({}, o, { trim: 1, corner: 0 }));
+    addB(x, y0, z, w, h, dp, o);
+    if (h > 120 && R() < 0.45) { const e = h * (0.18 + R() * 0.2); addB(x, top, z, w * 0.66, e, dp * 0.66, o); top += e; ROOFS.push([x, top, z, w * 0.66, dp * 0.66]); } else ROOFS.push([x, top, z, w, dp]);
+    if (h > 180) WARN.push([x + w * 0.3, top + 1.5, z + dp * 0.3]);
+  }
   // signs
-  if (zn === 'strip' && (cz === STRIPZ - CELL || cz === STRIPZ + CELL)) {
-    const face = cz < STRIPZ ? 1 : -1, fz = z + face * dp / 2, n = 4 + Math.floor(R() * 4);
+  if (zn === 'strip' && (l.cz === STRIPZ - CELL || l.cz === STRIPZ + CELL)) {
+    const face = l.cz < STRIPZ ? 1 : -1, fz = z + face * dp / 2, n = 7 + Math.floor(R() * 6);
     for (let k = 0; k < n; k++) {
-      const sy = 14 + R() * Math.min(h - 26, 150);
-      if (R() < 0.6) { const sw = 5 + R() * 5, sh = sw * (3 + R() * 1.5); addS(x + (R() - 0.5) * w * 0.9, sy + sh / 2, fz + face * (sw / 2 + 0.6), Math.PI / 2, sw, sh, true); }
-      else { const sh = 6 + R() * 6, sw = sh * 4; addS(x + (R() - 0.5) * (w - sw * 0.5), sy, fz + face * 0.7, face > 0 ? 0 : Math.PI, Math.min(sw, w), Math.min(sw, w) / 4, false); }
+      const sy = 10 + R() * Math.min(h - 26, 170);
+      if (R() < 0.6) { const sw = 4 + R() * 6, sh = sw * (3 + R() * 1.5); addS(x + (R() - 0.5) * w * 0.9, sy + sh / 2, fz + face * (sw / 2 + 0.6), Math.PI / 2, sw, sh, true); }
+      else { const sh = 5 + R() * 7, sw = Math.min(sh * 4, w); addS(x + (R() - 0.5) * (w - sw * 0.5), sy, fz + face * 0.7, face > 0 ? 0 : Math.PI, sw, sw / 4, false); }
     }
-  } else {
-    const p = zn === 'spire' ? 0.75 : zn === 'strip' ? 0.9 : zn === 'drowned' ? 0.15 : 0.35, n = R() < p ? 1 + Math.floor(R() * 2) : 0;
+  } else if (plain || zn === 'drowned') {
+    const p = zn === 'spire' ? 0.85 : zn === 'strip' ? 0.95 : zn === 'drowned' ? 0.2 : 0.6, n = R() < p ? 1 + Math.floor(R() * 3) : 0;
     for (let k = 0; k < n; k++) {
-      const side = Math.floor(R() * 4), ax = side < 2, sg = side % 2 ? 1 : -1, sy = y0 + 14 + R() * Math.max(h - 30, 4);
-      if (R() < 0.5) { const sw = 5 + R() * 6, sh = sw * (3 + R() * 1.5); if (ax) addS(x + sg * (w / 2 + sw / 2 + 0.6), sy + sh / 2, z + (R() - 0.5) * dp * 0.8, 0, sw, sh, true); else addS(x + (R() - 0.5) * w * 0.8, sy + sh / 2, z + sg * (dp / 2 + sw / 2 + 0.6), Math.PI / 2, sw, sh, true); }
+      const side = Math.floor(R() * 4), ax = side < 2, sg = side % 2 ? 1 : -1, sy = y0 + 12 + R() * Math.max(Math.min(h, 220) - 30, 4);
+      if (R() < 0.5) { const sw = 4 + R() * 6, sh = sw * (3 + R() * 1.5); if (ax) addS(x + sg * (w / 2 + sw / 2 + 0.6), sy + sh / 2, z + (R() - 0.5) * dp * 0.8, 0, sw, sh, true); else addS(x + (R() - 0.5) * w * 0.8, sy + sh / 2, z + sg * (dp / 2 + sw / 2 + 0.6), Math.PI / 2, sw, sh, true); }
       else { const base = ax ? dp : w, sw = base * (0.5 + R() * 0.4), sh = sw / 4; if (ax) addS(x + sg * (w / 2 + 0.7), sy, z, sg > 0 ? Math.PI / 2 : -Math.PI / 2, sw, sh, false); else addS(x, sy, z + sg * (dp / 2 + 0.7), sg > 0 ? 0 : Math.PI, sw, sh, false); }
     }
   }
+  // wall clutter
+  if (plain && (o.sty === 1 || zn === 'strip')) {
+    const n = 2 + Math.floor(R() * 5);
+    for (let k = 0; k < n; k++) {
+      const side = Math.floor(R() * 4), ax = side < 2, sg = side % 2 ? 1 : -1, px = ax ? x + sg * (w / 2 + 0.45) : x + (R() - 0.5) * w * 0.85, pz = ax ? z + (R() - 0.5) * dp * 0.85 : z + sg * (dp / 2 + 0.45);
+      if (R() < 0.5) addB(px, 0, pz, 0.8, Math.min(h * 0.8, 20 + R() * 70), 0.8, CL); else addB(px, 6 + R() * Math.min(h - 12, 50), pz, ax ? 1.3 : 2.4, 1.6, ax ? 2.4 : 1.3, CL);
+    }
+  }
+  // cables and bridges to neighbours
+  for (const dir of [[1, 0], [0, 1]]) {
+    const di = dir[0], nb = LOT[(l.i + di) + ',' + (l.j + dir[1])]; if (!nb) continue;
+    const bl = Math.abs(di ? (l.i + 1) * CELL : (l.j + 1) * CELL); if (bl === 800 || bl === 560) continue;
+    const a0 = di ? Math.max(l.z - l.dp / 2, nb.z - nb.dp / 2) : Math.max(l.x - l.w / 2, nb.x - nb.w / 2), a1 = di ? Math.min(l.z + l.dp / 2, nb.z + nb.dp / 2) : Math.min(l.x + l.w / 2, nb.x + nb.w / 2);
+    if (a1 - a0 < 6) continue;
+    const e1 = di ? l.x + l.w / 2 : l.z + l.dp / 2, e2 = di ? nb.x - nb.w / 2 : nb.z - nb.dp / 2, hm = Math.min(l.y0 + l.h, nb.y0 + nb.h);
+    if (hm < 16) continue;
+    const nc = zn === 'strip' ? 2 + Math.floor(R() * 3) : zn === 'drowned' ? (R() < 0.6 ? 1 : 0) : zn === 'spire' ? (R() < 0.35 ? 1 : 0) : (R() < 0.55 ? 1 + Math.floor(R() * 2) : 0);
+    for (let c = 0; c < nc; c++) {
+      const a = a0 + R() * (a1 - a0), b2 = a0 + R() * (a1 - a0), y1 = 7 + R() * Math.min(hm - 12, 46), y2 = y1 + (R() - 0.5) * 6, lan = R() < 0.45 ? pick([PAL.yel, PAL.mag, PAL.cyan, PAL.org, PAL.warm]) : null;
+      if (di) cable(e1, y1, a, e2, y2, b2, lan); else cable(a, y1, e1, b2, y2, e2, lan);
+    }
+    if (hm > 50 && e2 - e1 > 4 && R() < (zn === 'strip' ? 0.16 : 0.08)) {
+      const a = (a0 + a1) / 2, y = 26 + R() * Math.min(hm - 45, 110), len = e2 - e1 + 2, br = { tint: PAL.warm, lit: 0.9, trim: 1, trimc: pick([PAL.yel, PAL.cyan, PAL.mag]) };
+      if (di) addB((e1 + e2) / 2, y, a, len, 5, 7, br); else addB(a, y, (e1 + e2) / 2, 7, 5, len, br);
+    }
+  }
 }
-for (let x = 420; x < 1900; x += 220 + R() * 60) addB(x, 60 + R() * 80, STRIPZ, 14, 7, 104, { tint: PAL.warm, lit: 0.8, trim: 1, corner: 1, trimc: pick([PAL.mag, PAL.cyan]) });
+// strip sky bridges, stalls
+for (let x = 420; x < 1900; x += 200 + R() * 60) { if (Math.abs(x - 560) < 40 || Math.abs(x - 800) < 40) continue; addB(x, 104 + R() * 60, STRIPZ, 14, 7, 104, { tint: PAL.warm, lit: 0.8, trim: 1, corner: 1, trimc: pick([PAL.mag, PAL.cyan, PAL.yel]) }); }
+for (let x = 262; x < 1950; x += 7 + R() * 14) for (const s of [-1, 1]) if (R() < 0.6) addB(x, 0, STRIPZ + s * (46.5 + R() * 2), 3.5 + R() * 3, 2.8 + R() * 1.4, 3, { sty: 5, nc: true, tint: pick([PAL.yel, PAL.mag, PAL.cyan, PAL.org, PAL.warm]) });
+// elevated highways and the train loop
+(function () {
+  const hw = { sty: 4, trim: 1, trimc: PAL.yel }, rl = { sty: 4, trim: 1, trimc: PAL.cyan };
+  for (const c of [-800, 800]) for (let t = -1960; t < 2000; t += 80) { addB(c, 53.5, t, 20, 3, 80, hw); addB(t, 53.5, c, 80, 3, 20, hw); addB(c, 0, t, 5, 53.5, 5, CL); addB(t, 0, c, 5, 53.5, 5, CL); }
+  for (const c of [-560, 560]) for (let t = -520; t < 560; t += 80) { addB(c, 92.5, t, 7, 2.5, 80, rl); addB(t, 92.5, c, 80, 2.5, 7, rl); addB(c, 0, t, 3.5, 92.5, 3.5, CL); addB(t, 0, c, 3.5, 92.5, 3.5, CL); }
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) addB(sx * 560, 92.5, sz * 560, 7, 2.5, 7, rl);
+})();
+// rooftop clutter
+for (const rf of ROOFS) {
+  const n = Math.floor(R() * 4) + (rf[3] > 100 ? 6 : 0);
+  for (let k = 0; k < n; k++) {
+    const rx = rf[0] + (R() - 0.5) * rf[3] * 0.7, rz = rf[2] + (R() - 0.5) * rf[4] * 0.7, t = R();
+    if (t < 0.3) addB(rx, rf[1], rz, 4 + R() * 3, 4 + R() * 4, 4 + R() * 3, CL);
+    else if (t < 0.6) addB(rx, rf[1], rz, 5 + R() * 4, 2 + R(), 3 + R() * 3, CL);
+    else if (t < 0.85) { const e = 10 + R() * 24; addB(rx, rf[1], rz, 0.7, e, 0.7, CL); if (R() < 0.25) WARN.push([rx, rf[1] + e + 1, rz]); }
+    else if (rf[3] > 18) { const bw = Math.min(rf[3] * 0.8, 14 + R() * 20); addS(rf[0], rf[1] + bw / 8 + 2.5, rf[2], pick([0, Math.PI / 2]), bw, bw / 4, false); }
+  }
+}
 
 // ---------- buildings ----------
-const bMat = fogMat({
-  vertexShader: ['attribute vec3 aTint; attribute vec3 aTrim; attribute vec4 aInfo;', 'varying vec3 vL; varying vec3 vN; varying vec3 vS; varying vec3 vTint; varying vec3 vTrim; varying vec4 vInfo; varying float vDist;', '#include <fog_pars_vertex>',
-    'void main(){ vec3 s = vec3(length(instanceMatrix[0].xyz), length(instanceMatrix[1].xyz), length(instanceMatrix[2].xyz));', 'vS = s; vL = position * s; vN = normal; vTint = aTint; vTrim = aTrim; vInfo = aInfo;',
+const bMat = fogMat({ uniforms: { lightDir: { value: MOOND.clone() } },
+  vertexShader: ['attribute vec3 aTint; attribute vec3 aTrim; attribute vec4 aInfo; attribute float aSty;', 'varying vec3 vL; varying vec3 vN; varying vec3 vS; varying vec3 vTint; varying vec3 vTrim; varying vec4 vInfo; varying float vDist; varying float vSty; varying vec3 vWash; varying float vBaseY;', '#include <fog_pars_vertex>',
+    'void main(){ vec3 s = vec3(length(instanceMatrix[0].xyz), length(instanceMatrix[1].xyz), length(instanceMatrix[2].xyz));', 'vS = s; vL = position * s; vN = normal; vTint = aTint; vTrim = aTrim; vInfo = aInfo; vSty = aSty;',
+    'vec4 c = modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0); vec2 w = c.xz; vWash = vec3(0.5, 0.12, 0.7);',
+    'if (length(w) < 720.0) vWash = vec3(0.15, 0.3, 0.9);', 'if (w.x > 250.0 && w.x < 1960.0 && abs(w.y - 40.0) < 380.0) vWash = vec3(0.95, 0.6, 0.05);', 'if (w.y > 820.0 && w.y < 2000.0 && abs(w.x) < 1000.0) vWash = vec3(0.0, 0.5, 0.45);',
+    'vBaseY = abs(c.y) - s.y * 0.5;',
     'vec4 mvPosition = modelViewMatrix * instanceMatrix * vec4(position, 1.0); vDist = -mvPosition.z; gl_Position = projectionMatrix * mvPosition;', '#include <fog_vertex>', '}'].join('\n'),
-  fragmentShader: [H21, 'varying vec3 vL; varying vec3 vN; varying vec3 vS; varying vec3 vTint; varying vec3 vTrim; varying vec4 vInfo; varying float vDist;', '#include <fog_pars_fragment>',
-    'void main(){ vec3 col = vec3(0.010, 0.012, 0.026); float seed = vInfo.x; float far = smoothstep(700.0, 2000.0, vDist);',
-    'if (abs(vN.y) < 0.5) {',
-    '  bool xf = abs(vN.x) > 0.5; float u = xf ? vL.z : vL.x; float hw = (xf ? vS.z : vS.x) * 0.5; float v = vL.y + vS.y * 0.5;',
-    '  vec2 q = vec2(u / 3.2 + 200.0, v / 3.6); vec2 cell = floor(q); vec2 f = fract(q);',
-    '  float r = h21(cell + seed * 17.0); float fr = h21(vec2(cell.y, seed * 31.0));',
-    '  float lit = max(step(1.0 - vInfo.y * 0.75, r), step(0.94, fr) * step(0.01, vInfo.y)) * step(0.1, fr);',
-    '  float win = smoothstep(0.08, 0.16, f.x) * smoothstep(0.92, 0.84, f.x) * smoothstep(0.2, 0.3, f.y) * smoothstep(0.86, 0.76, f.y);',
-    '  float br = 0.3 + 0.7 * h21(cell * 1.7 + seed);',
-    '  vec3 wc = mix(vTint, vec3(1.0, 0.8, 0.55), step(0.82, h21(cell + 3.1)) * 0.7);',
-    '  float sh = (0.5 + 0.5 * smoothstep(0.25, 0.8, f.y)) * (1.0 - 0.55 * smoothstep(0.035, 0.015, abs(f.x - 0.5)));', '  col += wc * mix(win * lit * br * sh, vInfo.y * 0.16, far) * 0.8;',
-    '  col += vec3(0.012, 0.014, 0.024) * (1.0 - far) * step(0.94, f.y);',
-    '  float top = vS.y - v; if (vInfo.z > 0.5) col += vTrim * smoothstep(1.8, 0.5, top) * 1.8;',
+  fragmentShader: [H21, 'uniform vec3 lightDir; varying vec3 vL; varying vec3 vN; varying vec3 vS; varying vec3 vTint; varying vec3 vTrim; varying vec4 vInfo; varying float vDist; varying float vSty; varying vec3 vWash; varying float vBaseY;', '#include <fog_pars_fragment>',
+    'void main(){ float far = smoothstep(700.0, 2000.0, vDist); float seed = vInfo.x;',
+    'float nl = dot(normalize(vN), lightDir); float tone = nl > 0.35 ? 1.0 : (nl > -0.1 ? 0.5 : 0.18);',
+    'vec3 base = (vec3(0.010, 0.012, 0.028) + vWash * 0.045) * (0.3 + tone * 1.25); vec3 col = base; float ew = 0.2 + vDist * 0.0013; float edge = 0.0;',
+    'if (vSty > 4.5) { col = vTint * (1.2 + 0.5 * step(0.5, fract(vL.y * 0.9))); }',
+    'else if (abs(vN.y) < 0.5) {',
+    '  bool xf = abs(vN.x) > 0.5; float u = xf ? vL.z : vL.x; float hw = (xf ? vS.z : vS.x) * 0.5; float v = vL.y + vS.y * 0.5; float top = vS.y - v;',
+    '  edge = 1.0 - smoothstep(ew * 0.5, ew, min(hw - abs(u), min(v, top)));',
+    '  if (vSty < 3.5) {',
+    '    vec2 cs = vSty > 2.5 ? vec2(3.6, 4.0) : (vSty > 1.5 ? vec2(4.2, 4.2) : (vSty > 0.5 ? vec2(2.3, 3.0) : vec2(3.2, 3.6)));',
+    '    vec2 q = vec2(u / cs.x + 200.0, v / cs.y); vec2 cell = floor(q); vec2 f = fract(q);',
+    '    float r = h21(cell + seed * 17.0); float fr = h21(vec2(cell.y, seed * 31.0)); float lit = 0.0; float win = 0.0; vec3 wc = vTint;',
+    '    if (vSty > 1.5 && vSty < 2.5) {',
+    '      lit = step(1.0 - vInfo.y * 0.9, fr) * (0.55 + 0.45 * r);',
+    '      win = smoothstep(0.03, 0.07, f.x) * smoothstep(0.97, 0.93, f.x) * smoothstep(0.1, 0.16, f.y) * smoothstep(0.9, 0.84, f.y);',
+    '      col += vWash * 0.05 * tone * win;',
+    '    } else {',
+    '      lit = max(step(1.0 - vInfo.y * 0.75, r), step(0.94, fr) * step(0.01, vInfo.y)) * step(0.1, fr);',
+    '      win = smoothstep(0.08, 0.16, f.x) * smoothstep(0.92, 0.84, f.x) * smoothstep(0.2, 0.3, f.y) * smoothstep(0.86, 0.76, f.y);',
+    '    }',
+    '    if (vSty > 0.5 && vSty < 1.5) {',
+    '      float pc = h21(cell + 9.7); wc = pc < 0.4 ? vTint : (pc < 0.6 ? vec3(1.0, 0.75, 0.45) : (pc < 0.75 ? vec3(0.2, 0.9, 1.0) : (pc < 0.9 ? vec3(1.0, 0.25, 0.75) : vec3(1.0, 0.9, 0.15))));',
+    '      col += base * 1.6 * step(0.88, f.y) * (1.0 - far);',
+    '      col += vec3(0.9, 0.15, 0.1) * step(0.8, h21(cell + 4.4)) * step(abs(f.x - 0.88), 0.04) * step(abs(f.y - 0.12), 0.05) * (1.0 - far) * 1.5;',
+    '    } else wc = mix(vTint, vec3(1.0, 0.8, 0.55), step(0.82, h21(cell + 3.1)) * 0.7);',
+    '    if (vSty > 2.5) { col *= 0.6 + 0.6 * n2(vec2(u * 0.35, v * 0.03) + seed); col += vec3(0.0, 0.22, 0.18) * smoothstep(34.0, 0.0, vBaseY + v) * 0.35 * (0.5 + 0.5 * n2(vec2(u * 0.2, v * 0.2))); }',
+    '    float br = 0.3 + 0.7 * h21(cell * 1.7 + seed);',
+    '    float sh = (0.5 + 0.5 * smoothstep(0.25, 0.8, f.y)) * (1.0 - 0.55 * smoothstep(0.035, 0.015, abs(f.x - 0.5)));',
+    '    col += wc * mix(win * lit * br * sh, vInfo.y * 0.16, far) * 0.8;',
+    '    col += base * 0.9 * (1.0 - far) * step(0.94, f.y);',
+    '  }',
+    '  if (vInfo.z > 0.5) col += vTrim * smoothstep(1.8, 0.5, top) * 1.8;',
     '  if (vInfo.w > 0.5) col += vTrim * smoothstep(1.0, 0.3, hw - abs(u)) * 1.3;',
     '} else if (vN.y > 0.5) {',
-    '  vec2 e2 = vS.xz * 0.5 - abs(vL.xz); float e = min(e2.x, e2.y); if (vInfo.z > 0.5) col += vTrim * smoothstep(1.4, 0.4, e) * 1.7;',
+    '  vec2 e2 = vS.xz * 0.5 - abs(vL.xz); float e = min(e2.x, e2.y); edge = 1.0 - smoothstep(ew * 0.5, ew, e);',
+    '  col = base * 1.15; if (vInfo.z > 0.5) col += vTrim * smoothstep(1.4, 0.4, e) * 1.7;',
     '}',
+    'col = mix(col, (vec3(0.14, 0.18, 0.4) + vWash * 0.16) * (0.35 + tone), edge * 0.8 * (1.0 - far * 0.7) * step(vSty, 4.5));',
     'gl_FragColor = vec4(col, 1.0);', '#include <fog_fragment>', '}'].join('\n')
 });
 const city = new THREE.Group(), mirror = new THREE.Group(); mirror.scale.y = -1; scene.add(city); scene.add(mirror);
 const grid = {};
 (function () {
-  const n = B.length, geo = new THREE.BoxGeometry(1, 1, 1), tint = new Float32Array(n * 3), trim = new Float32Array(n * 3), info = new Float32Array(n * 4);
+  const n = B.length, geo = new THREE.BoxGeometry(1, 1, 1), tint = new Float32Array(n * 3), trim = new Float32Array(n * 3), info = new Float32Array(n * 4), sty = new Float32Array(n);
   const mesh = new THREE.InstancedMesh(geo, bMat, n), m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), p = new THREE.Vector3(), s = new THREE.Vector3();
   for (let i = 0; i < n; i++) {
     const b = B[i]; e.set(b.rx, 0, b.rz); q.setFromEuler(e); m.compose(p.set(b.x, b.y, b.z), q, s.set(b.sx, b.sy, b.sz)); mesh.setMatrixAt(i, m);
-    tint.set(b.tint, i * 3); trim.set(b.trimc, i * 3); info.set([b.seed, b.lit, b.trim, b.corner], i * 4);
+    tint.set(b.tint, i * 3); trim.set(b.trimc, i * 3); info.set([b.seed, b.lit, b.trim, b.corner], i * 4); sty[i] = b.sty;
+    if (b.nc) continue;
     const hx = b.sx / 2 + 1, hz = b.sz / 2 + 1, bb = [b.x - hx, b.x + hx, b.y - b.sy / 2, b.y + b.sy / 2, b.z - hz, b.z + hz];
     for (let gx = Math.floor(bb[0] / CELL); gx <= Math.floor(bb[1] / CELL); gx++) for (let gz = Math.floor(bb[4] / CELL); gz <= Math.floor(bb[5] / CELL); gz++) { const k = gx + ',' + gz; (grid[k] || (grid[k] = [])).push(bb); }
   }
-  geo.setAttribute('aTint', new THREE.InstancedBufferAttribute(tint, 3)); geo.setAttribute('aTrim', new THREE.InstancedBufferAttribute(trim, 3)); geo.setAttribute('aInfo', new THREE.InstancedBufferAttribute(info, 4));
+  geo.setAttribute('aTint', new THREE.InstancedBufferAttribute(tint, 3)); geo.setAttribute('aTrim', new THREE.InstancedBufferAttribute(trim, 3)); geo.setAttribute('aInfo', new THREE.InstancedBufferAttribute(info, 4)); geo.setAttribute('aSty', new THREE.InstancedBufferAttribute(sty, 1));
   mesh.frustumCulled = false; city.add(mesh);
   const m2 = new THREE.InstancedMesh(geo, bMat, n); m2.instanceMatrix = mesh.instanceMatrix; m2.frustumCulled = false; mirror.add(m2);
 })();
@@ -232,15 +341,45 @@ const atlas = (function () {
 (function () {
   const n = S.length, geo = new THREE.PlaneGeometry(1, 1), uv = new Float32Array(n * 4), ph = new Float32Array(n);
   const mat = fogMat({ side: THREE.DoubleSide, uniforms: { map: { value: atlas } },
-    vertexShader: ['attribute vec4 aUv; attribute float aPh; varying vec2 vUv; varying float vPh;', '#include <fog_pars_vertex>', 'void main(){ vUv = uv * aUv.zw + aUv.xy; vPh = aPh; vec4 mvPosition = modelViewMatrix * instanceMatrix * vec4(position, 1.0); gl_Position = projectionMatrix * mvPosition;', '#include <fog_vertex>', '}'].join('\n'),
-    fragmentShader: ['uniform sampler2D map; uniform float time; varying vec2 vUv; varying float vPh;', '#include <fog_pars_fragment>',
+    vertexShader: ['uniform float time; attribute vec4 aUv; attribute float aPh; varying vec2 vUv; varying float vPh; varying vec2 vP;', '#include <fog_pars_vertex>', 'void main(){ vec2 off = aUv.xy; if (aPh < 0.0) { float idx = mod(floor(time * 0.22 - aPh), 16.0); off = aUv.z < 0.1 ? vec2(idx / 16.0, 0.0) : vec2(mod(idx, 4.0) * 0.25, 1.0 - (floor(idx / 4.0) + 1.0) * 0.125); } vUv = uv * aUv.zw + off; vPh = aPh; vP = uv; vec4 mvPosition = modelViewMatrix * instanceMatrix * vec4(position, 1.0); gl_Position = projectionMatrix * mvPosition;', '#include <fog_vertex>', '}'].join('\n'),
+    fragmentShader: ['uniform sampler2D map; uniform float time; varying vec2 vUv; varying float vPh; varying vec2 vP;', '#include <fog_pars_fragment>',
       'void main(){ vec3 c = texture2D(map, vUv).rgb; float fl = 0.88 + 0.12 * sin(time * 9.0 + vPh * 7.0); float bz = step(0.965, fract(sin(floor(time * 14.0 + vPh * 31.0) * 12.9898) * 43758.5453)); fl *= 1.0 - 0.7 * bz * step(0.7, fract(vPh * 0.37));',
-      'gl_FragColor = vec4(c * c * 2.6 * fl + c * 0.25, 1.0);', '#include <fog_fragment>', '}'].join('\n') });
+      'if (vPh < 0.0) { float sw = fract(time * 0.22 - vPh); fl = 0.62 + 0.9 * smoothstep(0.06, 0.0, sw); c *= 0.75 + 0.25 * step(0.5, fract(vP.y * 70.0)); c += vec3(0.25, 0.9, 1.0) * smoothstep(0.012, 0.0, abs(vP.y - fract(time * 0.13 - vPh))) * 0.5; }', 'gl_FragColor = vec4(c * c * 2.6 * fl + c * 0.25, 1.0);', '#include <fog_fragment>', '}'].join('\n') });
   const mesh = new THREE.InstancedMesh(geo, mat, n), m = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), s = new THREE.Vector3(), Y = new THREE.Vector3(0, 1, 0);
   for (let i = 0; i < n; i++) { const g = S[i]; q.setFromAxisAngle(Y, g.ry); m.compose(p.set(g.x, g.y, g.z), q, s.set(g.w, g.h, 1)); mesh.setMatrixAt(i, m); uv.set(g.uv, i * 4); ph[i] = g.ph; }
   geo.setAttribute('aUv', new THREE.InstancedBufferAttribute(uv, 4)); geo.setAttribute('aPh', new THREE.InstancedBufferAttribute(ph, 1));
   mesh.frustumCulled = false; city.add(mesh);
   const m2 = new THREE.InstancedMesh(geo, mat, n); m2.instanceMatrix = mesh.instanceMatrix; m2.frustumCulled = false; mirror.add(m2);
+})();
+
+// ---------- cables, lanterns, street lights, crowds ----------
+function glowPoints(arr, far, parent) {
+  const n = arr.length / 7, pos = new Float32Array(n * 3), col = new Float32Array(n * 3), sz = new Float32Array(n);
+  for (let i = 0; i < n; i++) { pos.set([arr[i * 7], arr[i * 7 + 1], arr[i * 7 + 2]], i * 3); col.set([arr[i * 7 + 3], arr[i * 7 + 4], arr[i * 7 + 5]], i * 3); sz[i] = arr[i * 7 + 6]; }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('aC', new THREE.BufferAttribute(col, 3)); g.setAttribute('aS', new THREE.BufferAttribute(sz, 1));
+  const m = new THREE.ShaderMaterial({ uniforms: { time: T, far: { value: far } }, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+    vertexShader: 'uniform float far; attribute vec3 aC; attribute float aS; varying vec3 vC; void main(){ vec4 mv = modelViewMatrix * vec4(position, 1.0); float d = -mv.z; vC = aC * exp(-pow(d * 0.00045, 2.0)) * smoothstep(far, far * 0.6, d); gl_PointSize = clamp(aS * 900.0 / d, 1.0, 16.0 * aS); gl_Position = projectionMatrix * mv; }',
+    fragmentShader: 'varying vec3 vC; void main(){ float r = length(gl_PointCoord - 0.5); gl_FragColor = vec4(vC, smoothstep(0.5, 0.08, r)); }' });
+  const p = new THREE.Points(g, m); p.frustumCulled = false; (parent || scene).add(p);
+  if (!parent) { const p2 = new THREE.Points(g, m); p2.frustumCulled = false; mirror.add(p2); }
+  return p;
+}
+(function () {
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(CAB, 3));
+  const l = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: new THREE.Color(0.09, 0.1, 0.2) })); l.frustumCulled = false; scene.add(l);
+  glowPoints(LAN, 900);
+  const L = [];
+  for (let k = -24; k <= 24; k++) for (let t = -1980; t < 2000; t += 40) for (const s of [-9.5, 9.5]) for (let ax = 0; ax < 2; ax++) {
+    const x = ax ? t : k * CELL + s, z = ax ? k * CELL + s : t; if (Math.hypot(x, z) < 180 || inMega(x, z)) continue;
+    const zn = zoneOf(x, z); if (zn === 'drowned' && R() < 0.85) continue;
+    const c = zn === 'strip' ? (R() < 0.5 ? [1.5, 1.2, 0.15] : [1.5, 0.3, 1.1]) : zn === 'spire' ? [0.8, 1.1, 1.6] : zn === 'drowned' ? [0.1, 1.0, 0.9] : [1.5, 0.85, 0.25];
+    L.push(x, 9, z, c[0], c[1], c[2], 0.8);
+  }
+  glowPoints(L, 2600);
+  const P2 = [], uc = [[1.4, 1.2, 0.2], [1.4, 0.3, 1.0], [0.2, 1.2, 1.4], [1.3, 1.3, 1.3], [1.4, 0.5, 0.15]];
+  for (let i = 0; i < 3200; i++) { const c = pick(uc); P2.push(255 + R() * 1700, 1.8, STRIPZ + (R() < 0.5 ? -1 : 1) * (42.5 + R() * 3.5), c[0], c[1], c[2], 0.3); }
+  for (let i = 0; i < 9000; i++) { const k = Math.floor(R() * 34) - 17, t = (R() - 0.5) * 2600, s = (R() < 0.5 ? -1 : 1) * (11 + R() * 2.5), ax = R() < 0.5, x = ax ? t : k * CELL + s, z = ax ? k * CELL + s : t, zn = zoneOf(x, z); if (zn === 'drowned' || Math.hypot(x, z) < 180 || inMega(x, z)) continue; const c = pick(uc); P2.push(x, 1.8, z, c[0], c[1], c[2], 0.3); }
+  glowPoints(P2, 700);
 })();
 
 // ---------- ground and water ----------
@@ -252,7 +391,7 @@ const ground = new THREE.Mesh(new THREE.PlaneGeometry(16000, 16000), fogMat({ tr
     'float line = smoothstep(0.55, 0.2, gm) * step(0.5, fract(al / 12.0)); col += vec3(1.0, 0.7, 0.25) * line * 0.55 * smoothstep(1500.0, 250.0, dist);',
     'col += vec3(0.08, 0.6, 0.85) * smoothstep(0.45, 0.1, abs(gm - 9.5)) * 0.3 * smoothstep(900.0, 150.0, dist);',
     'float a = mix(0.88, 0.7, smoothstep(0.5, 0.72, n2(p * 0.035)));',
-    'float sb = smoothstep(52.0, 46.0, abs(p.y - 40.0)) * step(250.0, p.x) * step(p.x, 1960.0); col += vec3(0.9, 0.1, 0.6) * sb * smoothstep(0.5, 0.15, abs(abs(p.y - 40.0) - 44.0)) * 0.9; a = mix(a, 0.66, sb);',
+    'float sb = smoothstep(52.0, 46.0, abs(p.y - 40.0)) * step(250.0, p.x) * step(p.x, 1960.0); col += vec3(1.0, 0.75, 0.1) * sb * (smoothstep(0.5, 0.15, abs(abs(p.y - 40.0) - 44.0)) * 0.9 + 0.012); a = mix(a, 0.66, sb);',
     'float dz = smoothstep(790.0, 900.0, p.y) * smoothstep(1090.0, 960.0, abs(p.x)) * smoothstep(2110.0, 1990.0, p.y);',
     'float rip = n2(p * 0.07 + time * 0.22) * 0.6 + n2(p * 0.21 - time * 0.35) * 0.4;',
     'vec3 water = vec3(0.0, 0.035, 0.05) + vec3(0.0, 0.6, 0.52) * pow(rip, 4.0) * 0.8 + vec3(0.0, 0.25, 0.3) * smoothstep(0.6, 0.9, n2(p * 0.012)) * 0.35;',
@@ -262,10 +401,10 @@ ground.rotation.x = -Math.PI / 2; ground.renderOrder = 2; scene.add(ground);
 
 // ---------- traffic ----------
 (function () {
-  const n = isTouch ? 700 : 1300, geo = new THREE.BoxGeometry(2.4, 1.3, 5.5), aP = new Float32Array(n * 3), aD = new Float32Array(n * 4);
+  const n = isTouch ? 1100 : 2400, geo = new THREE.BoxGeometry(2.4, 1.3, 5.5), aP = new Float32Array(n * 3), aD = new Float32Array(n * 4);
   for (let i = 0; i < n; i++) {
-    const strip = i < n * 0.22, ax = strip ? 0 : (R() < 0.5 ? 0 : 1), sg = R() < 0.5 ? 1 : -1; let k = Math.floor(R() * 48) - 24; if (k === 0) k = 1;
-    const alt = strip ? 10 + Math.floor(R() * 5) * 9 : pick([14, 14, 40, 40, 85, 140, 210]) + R() * 4, lane = (strip ? 8 + Math.floor(R() * 3) * 9 : 3.5) * sg;
+    const strip = i < n * 0.2, hw = !strip && i < n * 0.42, ax = strip ? 0 : (R() < 0.5 ? 0 : 1), sg = R() < 0.5 ? 1 : -1; let k = Math.floor(R() * 48) - 24; if (k === 0) k = 1; if (hw) k = R() < 0.5 ? -10 : 10;
+    const alt = strip ? 10 + Math.floor(R() * 5) * 9 : hw ? 56.4 : pick([14, 14, 40, 76, 140, 210]) + R() * 4, lane = (strip ? 8 + Math.floor(R() * 3) * 9 : hw ? 2.5 + Math.floor(R() * 2) * 4.5 : 3.5) * sg;
     if (ax === 0) aP.set([0, alt, (strip ? STRIPZ : k * CELL) + lane], i * 3); else aP.set([k * CELL - lane, alt, 0], i * 3);
     aD.set([ax, sg, (strip ? 32 : 24) + R() * 26, R() * 4400], i * 4);
   }
@@ -347,7 +486,9 @@ scene.environment = envTex;
 const ship = new THREE.Group(); scene.add(ship);
 const nozzles = [], blinkers = [];
 (function () {
-  const hullM = new THREE.MeshStandardMaterial({ color: 0x15171d, metalness: 0.9, roughness: 0.3, envMapIntensity: 1.3 });
+  const gm = new THREE.DataTexture(new Uint8Array([70, 150, 255]), 3, 1, THREE.RedFormat); gm.minFilter = gm.magFilter = THREE.NearestFilter; gm.needsUpdate = true;
+  const hullM = new THREE.MeshToonMaterial({ color: 0x3d4563, gradientMap: gm, side: THREE.DoubleSide });
+  const dl = new THREE.DirectionalLight(0xcfe0ff, 2.6); dl.position.copy(MOOND).multiplyScalar(100); scene.add(dl); scene.add(new THREE.HemisphereLight(0xb070ff, 0x101030, 1.5));
   const darkM = new THREE.MeshStandardMaterial({ color: 0x08090c, metalness: 0.9, roughness: 0.5 });
   const glassM = new THREE.MeshStandardMaterial({ color: 0x020409, metalness: 1, roughness: 0.06, envMapIntensity: 2.2 });
   const cy = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.4, 3.2, 3.8) }), mg = new THREE.MeshBasicMaterial({ color: new THREE.Color(4.0, 0.5, 3.0) });
@@ -373,6 +514,8 @@ const nozzles = [], blinkers = [];
     const tip = add(new THREE.SphereGeometry(0.11, 8, 6), new THREE.MeshBasicMaterial({ color: s < 0 ? new THREE.Color(4, 0.4, 3) : new THREE.Color(0.4, 3.4, 4) }), s * 5.85, -0.36, 3.2); blinkers.push(tip);
   }
   add(new THREE.BoxGeometry(0.08, 0.05, 3.2), mg, 0, 0.93, 2.6);
+  const om = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.3, 0.02, 0.22), side: THREE.BackSide });
+  for (const c of ship.children.slice()) if (c.material === hullM) { const o = new THREE.Mesh(c.geometry, om); o.position.copy(c.position); o.rotation.copy(c.rotation); o.scale.copy(c.scale).multiplyScalar(1.07); ship.add(o); }
 })();
 // trails
 const trails = [];
