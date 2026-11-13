@@ -1032,7 +1032,7 @@ function castLine() {
 function hookFish(f) {
   if (fsh.fish && fsh.fish !== f) fsh.fish.state = 'free';
   fsh.fish = f; f.state = 'hooked'; fsh.st = 'ride'; fsh.len = clamp(f.lp.distanceTo(P), 15, 70);
-  fsh.ten = 0.3; fsh.stamMax = fsh.stam = f.o.stam * f.sz; fsh.sT = 2.6; fsh.tell = 0; fsh.surge = 0; fsh.over = 0; fsh.clean = true; rndDir(fsh.wd);
+  fsh.ten = 0.3; fsh.stamMax = fsh.stam = f.o.stam * f.sz; fsh.sT = 2.6; fsh.tell = 0; fsh.surge = 0; fsh.over = 0; fsh.clean = true; fsh.taut = true; rndDir(fsh.wd);
   $('fishui').style.display = 'block'; $('fname').textContent = nameOf(f);
   say('Hooked! It is running with you. Thrust against it to tire it. Go slack when its lights flash.'); beep(880, 0.03);
 }
@@ -1064,7 +1064,7 @@ function rideStep(dt, reel) {
   else if (fsh.sT <= 0) { fsh.tell = 0.7; fsh.sT = o.sE * (0.7 + R() * 0.6) + o.sL + 0.7; rndDir(fsh.wd); beep(520, 0.02); }
   f.uG.value = fsh.tell > 0 ? 1 : fsh.surge > 0 ? 0.45 : 0;
   tC.copy(f.lp).sub(P); let d = tC.length(); fsh.n.copy(tC).multiplyScalar(1 / Math.max(d, 0.001));
-  const taut = d >= fsh.len - 0.3, il = evaIn.length(), resist = taut && il > 0.01 ? clamp(-evaIn.dot(fsh.n) / Math.max(il, 1), 0, 1) : 0;
+  const taut = fsh.taut, il = evaIn.length(), resist = taut && il > 0.01 ? clamp(-evaIn.dot(fsh.n) / Math.max(il, 1), 0, 1) : 0;
   if (reel && fsh.surge <= 0) fsh.len = Math.max(10 + f.sz * o.L * 0.3, fsh.len - 7 * dt);
   const load = clamp(resist + (reel ? 0.5 : 0), 0, 1.2), sf = clamp(fsh.stam / fsh.stamMax, 0, 1);
   tD.copy(fsh.n).applyQuaternion(shipQuat).addScaledVector(fsh.wd, 0.55);
@@ -1076,7 +1076,7 @@ function rideStep(dt, reel) {
   fsh.ten += ((taut ? 0.2 + 0.5 * load + (fsh.surge > 0 ? 0.55 : 0) : 0.05) - fsh.ten) * Math.min(1, dt * 3.2);
   if (fsh.ten > 0.9) fsh.clean = false;
   if (fsh.ten > 1) { fsh.over += dt; if (fsh.over > 0.8) { lineSnap('The line snapped. Stop fighting when its lights flash.'); return; } } else fsh.over = Math.max(0, fsh.over - dt);
-  tC.copy(f.lp).sub(P); d = tC.length();
+  tC.copy(f.lp).sub(P); d = tC.length(); fsh.taut = d > fsh.len - 0.05;
   if (d > fsh.len) {
     fsh.n.copy(tC).multiplyScalar(1 / d); P.addScaledVector(fsh.n, d - fsh.len);
     if (inHull(P)) { P.addScaledVector(fsh.n, -(d - fsh.len)); fsh.len = d; }
