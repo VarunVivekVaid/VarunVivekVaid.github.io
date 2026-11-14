@@ -115,18 +115,22 @@ const moon = (function () {
 const MOOND = new THREE.Vector3(-0.42, 0.34, 0.84).normalize();
 
 // ---------- city data ----------
-const PAL = { warm: [1.0, 0.72, 0.42], cool: [0.75, 0.85, 1.0], cyan: [0.15, 0.9, 1.0], mag: [1.0, 0.2, 0.75], teal: [0.1, 0.75, 0.65], yel: [1.0, 0.88, 0.1], org: [1.0, 0.45, 0.12] };
+const PAL = { warm: [1.0, 0.72, 0.42], cool: [0.75, 0.85, 1.0], cyan: [0.15, 0.9, 1.0], mag: [1.0, 0.2, 0.75], teal: [0.1, 0.75, 0.65], yel: [1.0, 0.88, 0.1], org: [1.0, 0.45, 0.12], wht: [0.9, 0.95, 1.0] };
 const CELL = 80, STRIPZ = 40;
 function zoneOf(x, z) {
   const d = Math.hypot(x, z);
-  if (z > 820 && z < 2000 && Math.abs(x) < 1000) return 'drowned';
+  if (Math.abs(x) > 2040 || Math.abs(z) > 2040) return x < -2040 && z > -800 && z < 1300 ? 'docks' : 'edge';
+  if (z > 820 && Math.abs(x) < 1000) return 'drowned';
+  if (x < -1640 && z > -800 && z < 1300) return 'docks';
+  if (x < -760 && z < -900) return 'under';
+  if (x > 700 && z < -520) return 'corp';
   if (x > 250 && x < 1960 && Math.abs(z - STRIPZ) < 380) return 'strip';
   if (d < 720) return 'spire';
   return 'city';
 }
-const ZNAME = { drowned: 'THE DROWNED QUARTER', strip: 'NEON STRIP', spire: 'THE SPIRE', city: 'VAID CITY' };
+const ZNAME = { drowned: 'THE DROWNED QUARTER', strip: 'NEON STRIP', spire: 'THE SPIRE', city: 'VAID CITY', corp: 'CORPORATE HEIGHTS', under: 'THE UNDERCITY', docks: 'THE DOCKS', edge: 'THE EDGE', station: 'HIGH STATION' };
 const MEGA = [[-1000, -600], [1000, -1000], [-1400, 600], [1320, 1000], [-600, -1400], [1480, -1560]];
-const B = [], S = [], WARN = [], ROOFS = [], CAB = [], LAN = [];
+const B = [], S = [], WARN = [], ROOFS = [], CAB = [], LAN = [], YARD = [];
 const CL = { sty: 4, nc: true, lit: 0, trim: 0 };
 function addB(x, y0, z, sx, sy, sz, o) { const b = { x: x, y: y0 + sy / 2, z: z, sx: sx, sy: sy, sz: sz, rx: 0, rz: 0, tint: PAL.warm, trimc: PAL.mag, seed: R() * 100, lit: 0.4, trim: 0, corner: 0, sty: 0, nc: false }; if (o) Object.assign(b, o); B.push(b); return b; }
 function addS(x, y, z, ry, w, h, vert, video) {
@@ -162,8 +166,12 @@ for (let i = -25; i < 25; i++) for (let j = -25; j < 25; j++) {
   if (d < 175 || inMega(cx, cz)) continue;
   if (cz === STRIPZ && cx > 250 && cx < 1960) continue;
   if (Math.abs(cx) < 400 && cz < -250 && cz > -420) continue;
+  if (zn === 'under' && Math.abs(cx + 1360) < 380 && Math.abs(cz + 1440) < 140) continue;
+  if (zn === 'docks' && R() < 0.4) { YARD.push([cx, cz]); continue; }
+  if (zn === 'corp' && R() < 0.18) continue;
   const w = 36 + R() * 22, dp = 36 + R() * 22; let h;
-  if (zn === 'spire') h = (150 + R() * R() * 520) * (1.15 - d / 900); else if (zn === 'strip') h = 90 + R() * 190; else if (zn === 'drowned') h = 22 + R() * 110; else { h = 30 + R() * R() * 200; if (R() < 0.05) h = 300 + R() * 160; }
+  if (zn === 'spire') h = (150 + R() * R() * 520) * (1.15 - d / 900); else if (zn === 'strip') h = 90 + R() * 190; else if (zn === 'drowned') h = 22 + R() * 110; else if (zn === 'corp') h = 200 + R() * R() * 440; else if (zn === 'under') h = 22 + R() * 66; else if (zn === 'docks') h = 10 + R() * 26; else { h = 30 + R() * R() * 200; if (R() < 0.05) h = 300 + R() * 160; }
+  if (Math.abs(cx) < 130 && cz < -1250) h = Math.min(h, 150);
   LOT[i + ',' + j] = { i: i, j: j, x: cx + (R() - 0.5) * (58 - w), z: cz + (R() - 0.5) * (58 - dp), w: w, dp: dp, h: h, zn: zn, y0: zn === 'drowned' ? -(6 + R() * 22) : 0, cz: cz };
 }
 for (const key in LOT) {
@@ -171,6 +179,9 @@ for (const key in LOT) {
   if (zn === 'spire') { o.tint = pick([PAL.cool, PAL.cool, PAL.cyan, PAL.warm]); o.lit = 0.35 + R() * 0.35; o.trim = R() < 0.6 ? 1 : 0; o.corner = R() < 0.35 ? 1 : 0; o.trimc = pick([PAL.cyan, PAL.mag]); o.sty = R() < 0.7 ? 2 : 0; }
   else if (zn === 'strip') { o.tint = pick([PAL.yel, PAL.warm, PAL.mag, PAL.cyan, PAL.org]); o.lit = 0.4 + R() * 0.4; o.trim = R() < 0.75 ? 1 : 0; o.corner = R() < 0.5 ? 1 : 0; o.trimc = pick([PAL.mag, PAL.cyan, PAL.yel, PAL.yel]); o.sty = R() < 0.65 ? 1 : 0; }
   else if (zn === 'drowned') { o.tint = pick([PAL.teal, PAL.teal, PAL.warm]); o.lit = 0.06 + R() * 0.16; o.trim = R() < 0.2 ? 1 : 0; o.trimc = PAL.teal; o.rx = (R() - 0.5) * 0.16; o.rz = (R() - 0.5) * 0.16; o.sty = 3; }
+  else if (zn === 'corp') { o.tint = pick([PAL.cool, PAL.cool, PAL.wht, PAL.cyan]); o.lit = 0.5 + R() * 0.35; o.trim = 1; o.corner = R() < 0.7 ? 1 : 0; o.trimc = pick([PAL.wht, PAL.wht, PAL.cyan]); o.sty = 2; }
+  else if (zn === 'under') { o.tint = pick([PAL.org, PAL.warm, PAL.mag, PAL.yel]); o.lit = 0.5 + R() * 0.4; o.trim = R() < 0.5 ? 1 : 0; o.trimc = pick([PAL.org, PAL.mag, PAL.yel]); o.sty = 1; }
+  else if (zn === 'docks') { o.tint = PAL.org; o.lit = 0.05 + R() * 0.1; o.trim = R() < 0.4 ? 1 : 0; o.trimc = PAL.org; o.sty = 3; }
   else { o.tint = pick([PAL.warm, PAL.warm, PAL.cool, PAL.cyan, PAL.mag, PAL.yel]); o.lit = 0.2 + R() * 0.4; o.trim = R() < 0.3 ? 1 : 0; o.corner = R() < 0.12 ? 1 : 0; o.trimc = pick([PAL.mag, PAL.cyan, PAL.yel]); o.sty = pick([0, 0, 1, 1, 2]); }
   const r = R(); let top = y0 + h, plain = false;
   if (zn === 'drowned') { addB(x, y0, z, w, h, dp, o); ROOFS.push([x, top, z, w * 0.6, dp * 0.6]); }
@@ -197,13 +208,14 @@ for (const key in LOT) {
       else { const sh = 5 + R() * 7, sw = Math.min(sh * 4, w); addS(x + (R() - 0.5) * (w - sw * 0.5), sy, fz + face * 0.7, face > 0 ? 0 : Math.PI, sw, sw / 4, false); }
     }
   } else if (plain || zn === 'drowned') {
-    const p = zn === 'spire' ? 0.85 : zn === 'strip' ? 0.95 : zn === 'drowned' ? 0.2 : 0.6, n = R() < p ? 1 + Math.floor(R() * 3) : 0;
+    const p = zn === 'under' ? 1 : zn === 'spire' ? 0.85 : zn === 'strip' ? 0.95 : zn === 'drowned' ? 0.2 : 0.6, n = R() < p ? 1 + Math.floor(R() * 3) : 0;
     for (let k = 0; k < n; k++) {
       const side = Math.floor(R() * 4), ax = side < 2, sg = side % 2 ? 1 : -1, sy = y0 + 12 + R() * Math.max(Math.min(h, 220) - 30, 4);
       if (R() < 0.5) { const sw = 4 + R() * 6, sh = sw * (3 + R() * 1.5); if (ax) addS(x + sg * (w / 2 + sw / 2 + 0.6), sy + sh / 2, z + (R() - 0.5) * dp * 0.8, 0, sw, sh, true); else addS(x + (R() - 0.5) * w * 0.8, sy + sh / 2, z + sg * (dp / 2 + sw / 2 + 0.6), Math.PI / 2, sw, sh, true); }
       else { const base = ax ? dp : w, sw = base * (0.5 + R() * 0.4), sh = sw / 4; if (ax) addS(x + sg * (w / 2 + 0.7), sy, z, sg > 0 ? Math.PI / 2 : -Math.PI / 2, sw, sh, false); else addS(x, sy, z + sg * (dp / 2 + 0.7), sg > 0 ? 0 : Math.PI, sw, sh, false); }
     }
   }
+  if (plain && zn === 'corp' && h > 200 && R() < 0.4) { const sg = R() < 0.5 ? 1 : -1, sw = w * 0.7, sh = sw * 1.5, sy = 60 + R() * h * 0.5; if (R() < 0.5) addS(x + sg * (w / 2 + 0.8), sy + sh / 2, z, sg > 0 ? Math.PI / 2 : -Math.PI / 2, sw, sh, true, true); else addS(x, sy + sh / 2, z + sg * (dp / 2 + 0.8), sg > 0 ? 0 : Math.PI, sw, sh, true, true); }
   // wall clutter
   if (plain && (o.sty === 1 || zn === 'strip')) {
     const n = 2 + Math.floor(R() * 5);
@@ -220,7 +232,7 @@ for (const key in LOT) {
     if (a1 - a0 < 6) continue;
     const e1 = di ? l.x + l.w / 2 : l.z + l.dp / 2, e2 = di ? nb.x - nb.w / 2 : nb.z - nb.dp / 2, hm = Math.min(l.y0 + l.h, nb.y0 + nb.h);
     if (hm < 16) continue;
-    const nc = zn === 'strip' ? 2 + Math.floor(R() * 3) : zn === 'drowned' ? (R() < 0.6 ? 1 : 0) : zn === 'spire' ? (R() < 0.35 ? 1 : 0) : (R() < 0.55 ? 1 + Math.floor(R() * 2) : 0);
+    const nc = zn === 'strip' || zn === 'under' ? 2 + Math.floor(R() * 3) : zn === 'drowned' ? (R() < 0.6 ? 1 : 0) : zn === 'spire' ? (R() < 0.35 ? 1 : 0) : (R() < 0.55 ? 1 + Math.floor(R() * 2) : 0);
     for (let c = 0; c < nc; c++) {
       const a = a0 + R() * (a1 - a0), b2 = a0 + R() * (a1 - a0), y1 = 7 + R() * Math.min(hm - 12, 46), y2 = y1 + (R() - 0.5) * 6, lan = R() < 0.45 ? pick([PAL.yel, PAL.mag, PAL.cyan, PAL.org, PAL.warm]) : null;
       if (di) cable(e1, y1, a, e2, y2, b2, lan); else cable(a, y1, e1, b2, y2, e2, lan);
@@ -231,6 +243,69 @@ for (const key in LOT) {
     }
   }
 }
+// ---------- districts ----------
+// undercity deck and the wreck
+(function () {
+  const dk = { sty: 4, trim: 1, trimc: [0.5, 0.2, 0.05] };
+  for (let i = -25; i < 0; i++) for (let j = -25; j < 0; j++) {
+    const cx = (i + 0.5) * CELL, cz = (j + 0.5) * CELL; if (zoneOf(cx, cz) !== 'under') continue;
+    if (Math.abs(cx + 1360) < 400 && Math.abs(cz + 1440) < 150) continue;
+    if (R() < 0.06) continue;
+    addB(cx, 108, cz, 80, 6, 80, dk);
+    for (const s of [-1, 1]) for (const t of [-1, 1]) LAN.push(cx + s * 22, 105.5, cz + t * 22, 1.6, 0.55, 0.12, 1.1);
+    if (R() < 0.3) { const h = 24 + R() * 90, w = 30 + R() * 30; addB(cx, 114, cz, w, h, w, { tint: PAL.cool, lit: 0.2 + R() * 0.3, sty: pick([0, 3]), trim: R() < 0.4 ? 1 : 0, trimc: PAL.org }); ROOFS.push([cx, 114 + h, cz, w, w]); }
+  }
+  const hull = { sty: 6, tint: PAL.teal, lit: 0.04, trim: 0, rz: 0.13 };
+  for (let k = 0; k < 5; k++) { const ht = 44 + k * 5, wd = 70 + k * 12 - (k === 4 ? 20 : 0); addB(-1598 + k * 120, 16 + k * 16 - ht / 2, -1440 + (k === 2 ? 6 : 0), 124, ht, wd, hull); }
+  addB(-1700, -6, -1440, 60, 30, 46, hull);
+  addB(-1240, 90, -1440, 50, 46, 40, { sty: 0, tint: PAL.cyan, lit: 0.3, trim: 1, trimc: [0.1, 0.5, 0.6], rz: 0.13 });
+  addB(-1100, 100, -1440, 70, 120, 8, hull); WARN.push([-1100, 224, -1440]);
+  for (const s of [-1, 1]) addB(-1100, 62, -1440 + s * 62, 60, 8, 50, Object.assign({}, hull, { rx: s * 0.2 }));
+  for (const s of [-1, 0, 1]) addB(-1050, 68 + Math.abs(s) * 6, -1440 + s * 26, 16, 20, 18, { sty: 5, tint: [1.3, 0.3, 0.05], nc: true, rz: 0.13 });
+  addB(-1560, -8, -1335, 90, 40, 60, Object.assign({}, hull, { rz: -0.08, rx: 0.2 }));
+  for (let n = 0; n < 240; n++) {
+    const x = -1700 + R() * 660, z = -1440 + (R() - 0.5) * 240, kf = Math.max(0, Math.min(5, (x + 1660) / 120)), base = Math.abs(z + 1440) < 34 ? 38 + (kf - 0.5) * 16 : 0, s = 5 + R() * 7;
+    addB(x, base, z, s, 3 + R() * 5, s, { sty: R() < 0.35 ? 5 : 1, nc: true, tint: pick([PAL.org, PAL.yel, PAL.mag, PAL.warm, PAL.cyan]), lit: 0.95 });
+    if (R() < 0.5) LAN.push(x, base + 9, z, 1.6, pick([0.5, 1.0]), 0.15, 0.7);
+  }
+  for (let n = 0; n < 70; n++) { const x = -1660 + R() * 600, top = 40 + ((x + 1660) / 120 - 0.5) * 16, sg = R() < 0.5 ? -1 : 1; cable(x, top + 2, -1440 + sg * 30, x + (R() - 0.5) * 80, 6 + R() * 30, -1440 + sg * (90 + R() * 70), pick([PAL.org, PAL.yel, PAL.mag])); }
+})();
+// sea wall, docks, the edge
+(function () {
+  const wl = { sty: 3, tint: PAL.cool, lit: 0, trim: 1, trimc: [0.5, 0.44, 0.05] }, gates = [-600, -200, 200, 600, 1000];
+  for (let t = -2000; t < 2000; t += 80) {
+    const c = t + 40;
+    addB(c, 0, -2020, 80, 70, 40, wl); addB(2020, 0, c, 40, 70, 80, wl);
+    if (Math.abs(c) > 1000) addB(c, 0, 2020, 80, 70, 40, wl); else if (Math.abs(c) > 840) addB(c, -20, 2020, 80, 30 + R() * 40, 40, Object.assign({}, wl, { rx: (R() - 0.5) * 0.3, rz: (R() - 0.5) * 0.3 }));
+    if (gates.indexOf(c) >= 0) addB(-2020, 40, c, 40, 30, 80, wl); else addB(-2020, 0, c, 40, 70, 80, wl);
+    if ((c - 40) % 400 === 0) { addB(c, 0, -2030, 30, 104, 60, wl); addB(2030, 0, c, 60, 104, 30, wl); WARN.push([c, 106, -2030], [2030, 106, c]); }
+  }
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) { addB(sx * 2020, 0, sz * 2020, 56, 124, 56, wl); WARN.push([sx * 2020, 126, sz * 2020]); }
+  const cc = [[0.9, 0.2, 0.1], [0.1, 0.4, 0.9], [0.9, 0.6, 0.1], [0.1, 0.7, 0.5], [0.7, 0.7, 0.7]];
+  const stack = function (x, y0, z) { const n = 1 + Math.floor(R() * 5), m = 1 + Math.floor(R() * 2), c = pick(cc); addB(x, y0, z, 12.2, 2.6 * n, 2.5 * m, { sty: 5, tint: [c[0] * 0.3, c[1] * 0.3, c[2] * 0.3] }); };
+  for (const y of YARD) {
+    for (let a = -2; a <= 2; a++) for (let b = -3; b <= 3; b++) if (R() < 0.7) stack(y[0] + a * 13.6, 0, y[1] + b * 8.4);
+    for (const s of [-1, 1]) { addB(y[0] + s * 34, 0, y[1] + s * 34, 0.8, 24, 0.8, CL); LAN.push(y[0] + s * 34, 25, y[1] + s * 34, 1.6, 1.3, 0.9, 1.3); }
+  }
+  const cr = { sty: 5, tint: [0.5, 0.16, 0.04] };
+  for (const pz of gates) {
+    addB(-2250, -2, pz, 420, 6, 56, { sty: 4, trim: 1, trimc: PAL.org });
+    for (let x = -2440; x < -2070; x += 14) for (const b of [-1, 1]) if (R() < 0.55) stack(x, 4, pz + b * 18);
+    for (const x of [-2380, -2200]) {
+      for (const sx of [-1, 1]) for (const sz of [-1, 1]) addB(x + sx * 12, 4, pz + sz * 25, 4, 62, 4, cr);
+      addB(x, 66, pz + 22, 30, 7, 134, cr); addB(x, 57, pz + 44, 8, 8, 8, { sty: 5, tint: [1.2, 1.0, 0.2] }); WARN.push([x, 76, pz + 86]);
+      for (let q = 0; q < 3; q++) LAN.push(x, 64, pz + 34 + q * 22, 1.6, 1.4, 1.0, 1.4);
+    }
+    if (pz > 900) continue;
+    const xs = -2270 + (R() - 0.5) * 60, zs = pz + 104, hl = { sty: 3, tint: PAL.cool, lit: 0, trim: 1, trimc: [0.6, 0.1, 0.05] };
+    addB(xs, -6, zs, 250, 24, 44, hl); addB(xs - 140, -6, zs, 40, 22, 28, hl);
+    addB(xs + 95, 18, zs, 30, 34, 40, { sty: 0, tint: PAL.warm, lit: 0.7, trim: 1, trimc: PAL.wht }); addB(xs + 100, 52, zs, 10, 16, 12, { sty: 5, tint: [0.6, 0.1, 0.05] }); WARN.push([xs + 100, 70, zs]);
+    for (let x = xs - 110; x < xs + 72; x += 14) for (const b of [-1, 0, 1]) if (R() < 0.8) stack(x, 18, zs + b * 12);
+  }
+  for (let n = 0; n < 260; n++) { const side = Math.floor(R() * 3), t = (R() - 0.5) * 4200, d = 2052 + R() * 90, s = 6 + R() * 10, x = side === 1 ? d : t, z = side === 0 ? -d : side === 1 ? t : d; if (side === 2 && Math.abs(x) < 1000) continue; addB(x, -3, z, s, s, s, { sty: 3, tint: PAL.cool, lit: 0, nc: true, rx: R() * 1.2, rz: R() * 1.2 }); }
+  for (let n = 0; n < 50; n++) { const a = R() * 6.283, d = 2700 + R() * 1700, x = Math.cos(a) * d, z = Math.sin(a) * d; if (x < -1900 && z > -1100 && z < 1600) continue; if (Math.abs(x) < 2150 && Math.abs(z) < 2150) continue; const w = 40 + R() * 40; addB(x, -30, z, w, 60 + R() * R() * 300, w, { sty: 3, tint: PAL.teal, lit: 0.03, rx: (R() - 0.5) * 0.5, rz: (R() - 0.5) * 0.5 }); }
+  addB(2300, -6, -2300, 90, 14, 90, wl); addB(2300, -4, -2300, 26, 172, 26, { sty: 4, trim: 1, trimc: PAL.wht });
+})();
 // strip sky bridges, stalls
 for (let x = 420; x < 1900; x += 200 + R() * 60) { if (Math.abs(x - 560) < 40 || Math.abs(x - 800) < 40) continue; addB(x, 104 + R() * 60, STRIPZ, 14, 7, 104, { tint: PAL.warm, lit: 0.8, trim: 1, corner: 1, trimc: pick([PAL.mag, PAL.cyan, PAL.yel]) }); }
 for (let x = 262; x < 1950; x += 7 + R() * 14) for (const s of [-1, 1]) if (R() < 0.6) addB(x, 0, STRIPZ + s * (46.5 + R() * 2), 3.5 + R() * 3, 2.8 + R() * 1.4, 3, { sty: 5, nc: true, tint: pick([PAL.yel, PAL.mag, PAL.cyan, PAL.org, PAL.warm]) });
@@ -258,14 +333,14 @@ const bMat = fogMat({ uniforms: { lightDir: { value: MOOND.clone() } },
   vertexShader: ['attribute vec3 aTint; attribute vec3 aTrim; attribute vec4 aInfo; attribute float aSty;', 'varying vec3 vL; varying vec3 vN; varying vec3 vS; varying vec3 vTint; varying vec3 vTrim; varying vec4 vInfo; varying float vDist; varying float vSty; varying vec3 vWash; varying float vBaseY;', '#include <fog_pars_vertex>',
     'void main(){ vec3 s = vec3(length(instanceMatrix[0].xyz), length(instanceMatrix[1].xyz), length(instanceMatrix[2].xyz));', 'vS = s; vL = position * s; vN = normal; vTint = aTint; vTrim = aTrim; vInfo = aInfo; vSty = aSty;',
     'vec4 c = modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0); vec2 w = c.xz; vWash = vec3(0.5, 0.12, 0.7);',
-    'if (length(w) < 720.0) vWash = vec3(0.15, 0.3, 0.9);', 'if (w.x > 250.0 && w.x < 1960.0 && abs(w.y - 40.0) < 380.0) vWash = vec3(0.95, 0.6, 0.05);', 'if (w.y > 820.0 && w.y < 2000.0 && abs(w.x) < 1000.0) vWash = vec3(0.0, 0.5, 0.45);',
+    'if (length(w) < 720.0) vWash = vec3(0.15, 0.3, 0.9);', 'if (w.x > 250.0 && w.x < 1960.0 && abs(w.y - 40.0) < 380.0) vWash = vec3(0.95, 0.6, 0.05);', 'if (w.y > 820.0 && w.y < 2000.0 && abs(w.x) < 1000.0) vWash = vec3(0.0, 0.5, 0.45);', 'if (w.x > 700.0 && w.y < -520.0) vWash = vec3(0.45, 0.6, 1.0);', 'if (w.x < -760.0 && w.y < -900.0) vWash = vec3(1.0, 0.3, 0.05);', 'if (w.x < -1640.0 && w.y > -800.0 && w.y < 1300.0) vWash = vec3(0.9, 0.45, 0.1);', 'if ((abs(w.x) > 2045.0 || abs(w.y) > 2045.0) && !(w.x < -2040.0 && w.y > -800.0 && w.y < 1300.0)) vWash = vec3(0.1, 0.3, 0.5);',
     'vBaseY = abs(c.y) - s.y * 0.5;',
     'vec4 mvPosition = modelViewMatrix * instanceMatrix * vec4(position, 1.0); vDist = -mvPosition.z; gl_Position = projectionMatrix * mvPosition;', '#include <fog_vertex>', '}'].join('\n'),
   fragmentShader: [H21, 'uniform vec3 lightDir; varying vec3 vL; varying vec3 vN; varying vec3 vS; varying vec3 vTint; varying vec3 vTrim; varying vec4 vInfo; varying float vDist; varying float vSty; varying vec3 vWash; varying float vBaseY;', '#include <fog_pars_fragment>',
     'void main(){ float far = smoothstep(700.0, 2000.0, vDist); float seed = vInfo.x;',
     'float nl = dot(normalize(vN), lightDir); float tone = nl > 0.35 ? 1.0 : (nl > -0.1 ? 0.5 : 0.18);',
     'vec3 base = (vec3(0.010, 0.012, 0.028) + vWash * 0.045) * (0.3 + tone * 1.25); vec3 col = base; float ew = 0.2 + vDist * 0.0013; float edge = 0.0;',
-    'if (vSty > 4.5) { col = vTint * (0.4 + 0.3 * step(0.5, fract(vL.y * 0.9))); }',
+    'if (vSty > 5.5) { vec2 pq = abs(vN.y) > 0.5 ? vL.xz : vec2(abs(vN.x) > 0.5 ? vL.z : vL.x, vL.y); vec2 pc = floor(pq / vec2(14.0, 7.0)); vec2 pf = fract(pq / vec2(14.0, 7.0));', '  col = vec3(0.075, 0.095, 0.12) * (0.35 + tone) * (0.65 + 0.6 * h21(pc + seed)); col = mix(col, vec3(0.2, 0.07, 0.02) * (0.4 + tone), smoothstep(0.5, 0.78, n2(pq * 0.06 + seed)));', '  col *= 1.0 - 0.65 * min(step(pf.x, 0.04) + step(pf.y, 0.08), 1.0); col += vec3(0.1, 0.9, 1.0) * step(0.9, h21(pc + 3.3)) * smoothstep(0.3, 0.12, length((pf - 0.5) * vec2(2.0, 1.0))) * 1.6; }', 'else if (vSty > 4.5) { col = vTint * (0.4 + 0.3 * step(0.5, fract(vL.y * 0.9))); }',
     'else if (abs(vN.y) < 0.5) {',
     '  bool xf = abs(vN.x) > 0.5; float u = xf ? vL.z : vL.x; float hw = (xf ? vS.z : vS.x) * 0.5; float v = vL.y + vS.y * 0.5; float top = vS.y - v;',
     '  edge = 1.0 - smoothstep(ew * 0.5, ew, min(hw - abs(u), min(v, top)));',
@@ -373,7 +448,7 @@ function glowPoints(arr, far, parent) {
   for (let k = -24; k <= 24; k++) for (let t = -1980; t < 2000; t += 40) for (const s of [-9.5, 9.5]) for (let ax = 0; ax < 2; ax++) {
     const x = ax ? t : k * CELL + s, z = ax ? k * CELL + s : t; if (Math.hypot(x, z) < 180 || inMega(x, z)) continue;
     const zn = zoneOf(x, z); if (zn === 'drowned' && R() < 0.85) continue;
-    const c = zn === 'strip' ? (R() < 0.5 ? [1.5, 1.2, 0.15] : [1.5, 0.3, 1.1]) : zn === 'spire' ? [0.8, 1.1, 1.6] : zn === 'drowned' ? [0.1, 1.0, 0.9] : [1.5, 0.85, 0.25];
+    const c = zn === 'strip' ? (R() < 0.5 ? [1.5, 1.2, 0.15] : [1.5, 0.3, 1.1]) : zn === 'spire' ? [0.8, 1.1, 1.6] : zn === 'drowned' ? [0.1, 1.0, 0.9] : zn === 'corp' ? [1.2, 1.4, 1.7] : zn === 'under' ? [1.7, 0.45, 0.1] : [1.5, 0.85, 0.25];
     L.push(x, 9, z, c[0], c[1], c[2], 0.8);
   }
   glowPoints(L, 2600);
@@ -396,7 +471,7 @@ const ground = new THREE.Mesh(new THREE.PlaneGeometry(16000, 16000), fogMat({ tr
     'float dz = smoothstep(790.0, 900.0, p.y) * smoothstep(1090.0, 960.0, abs(p.x)) * smoothstep(2110.0, 1990.0, p.y);',
     'float rip = n2(p * 0.07 + time * 0.22) * 0.6 + n2(p * 0.21 - time * 0.35) * 0.4;',
     'vec3 water = vec3(0.0, 0.035, 0.05) + vec3(0.0, 0.6, 0.52) * pow(rip, 4.0) * 0.8 + vec3(0.0, 0.25, 0.3) * smoothstep(0.6, 0.9, n2(p * 0.012)) * 0.35;',
-    'col = mix(col, water, dz); a = mix(a, 0.58, dz);',
+    'dz = max(dz, max(step(2040.0, abs(p.x)), step(2040.0, abs(p.y)))); col = mix(col, water, dz); a = mix(a, 0.58, dz);',
     'gl_FragColor = vec4(col, a);', '#include <fog_fragment>', '}'].join('\n') }));
 ground.rotation.x = -Math.PI / 2; ground.renderOrder = 2; scene.add(ground);
 
@@ -615,6 +690,30 @@ const life = (function () {
     const ge = new THREE.CylinderGeometry(1.5, 60, 1100, 16, 1, true); ge.translate(0, 550, 0);
     MEGA.forEach(function (m, i) { for (let k = 0; k < 2; k++) { const b = new THREE.Mesh(ge, new THREE.MeshBasicMaterial({ color: k ? new THREE.Color(0.3, 0.9, 1.0) : new THREE.Color(1.0, 0.85, 0.2), transparent: true, opacity: 0.05, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false })); b.position.set(m[0] + (k ? 40 : -40), (m[2] || 600) + 6, m[1]); b.frustumCulled = false; scene.add(b); beams.push({ m: b, ph: i * 1.3 + k * 2.6 }); } });
   })();
+  // high station, corp holograms, lighthouse
+  const station = new THREE.Group(); station.position.y = 3900; scene.add(station);
+  (function () {
+    const bm = function (r, g, b) { return new THREE.MeshBasicMaterial({ color: new THREE.Color(r, g, b), fog: false }); };
+    const dk2 = bm(0.05, 0.06, 0.12), cy = bm(0.3, 2.2, 2.6), yl = bm(2.6, 2.2, 0.3), mg = bm(2.6, 0.4, 1.8), pnm = bm(0.05, 0.25, 0.9);
+    const add = function (g, m, x, y, z) { const me = new THREE.Mesh(g, m); me.position.set(x || 0, y || 0, z || 0); station.add(me); return me; };
+    add(new THREE.CylinderGeometry(34, 34, 150, 20), dk2); add(new THREE.CylinderGeometry(35, 35, 4, 20), cy, 0, 40, 0); add(new THREE.CylinderGeometry(35, 35, 4, 20), mg, 0, -40, 0);
+    add(new THREE.CylinderGeometry(60, 34, 30, 20), dk2, 0, 90, 0); add(new THREE.CylinderGeometry(34, 60, 30, 20), dk2, 0, -90, 0);
+    add(new THREE.TorusGeometry(260, 15, 10, 72), dk2).rotation.x = Math.PI / 2;
+    add(new THREE.TorusGeometry(275.5, 1.6, 6, 96), cy).rotation.x = Math.PI / 2;
+    add(new THREE.TorusGeometry(260, 1.6, 6, 96), yl, 0, 15.5, 0).rotation.x = Math.PI / 2;
+    for (let k = 0; k < 4; k++) { const a = k * Math.PI / 2, a2 = a + 0.785; add(new THREE.BoxGeometry(230, 7, 7), dk2, Math.cos(a) * 145, 0, Math.sin(a) * 145).rotation.y = -a; add(new THREE.BoxGeometry(150, 1, 54), pnm, Math.cos(a2) * 380, 0, Math.sin(a2) * 380).rotation.y = -a2; add(new THREE.BoxGeometry(100, 4, 4), dk2, Math.cos(a2) * 300, 0, Math.sin(a2) * 300).rotation.y = -a2; }
+    for (let k = 0; k < 24; k++) { const a = k / 24 * 6.283; add(new THREE.SphereGeometry(2.4, 6, 5), k % 2 ? mg : yl, Math.cos(a) * 276, k % 2 ? 8 : -8, Math.sin(a) * 276); }
+    for (const k of ['-1,-1', '-1,0', '0,-1', '0,0']) (grid[k] || (grid[k] = [])).push([-35, 35, 3810, 3990, -35, 35]);
+  })();
+  const holos = [];
+  [[1240, 560, -760], [1720, 470, -1160], [860, 520, -1640], [1880, 600, -1880], [1300, 640, -1400]].forEach(function (p, i) {
+    const g = i % 3 === 0 ? new THREE.IcosahedronGeometry(46, 1) : i % 3 === 1 ? new THREE.TorusKnotGeometry(30, 7, 90, 10) : new THREE.OctahedronGeometry(50, 0);
+    const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: i % 2 ? new THREE.Color(0.2, 1.3, 1.6) : new THREE.Color(1.5, 1.5, 1.7), wireframe: true, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+    m.position.set(p[0], p[1], p[2]); m.userData.w = 0.15 + i * 0.04; scene.add(m); holos.push(m);
+    const b = new THREE.Mesh(new THREE.CylinderGeometry(40, 3, p[1] - 60, 16, 1, true), new THREE.MeshBasicMaterial({ color: new THREE.Color(0.3, 0.8, 1.0), transparent: true, opacity: 0.04, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide })); b.position.set(p[0], (p[1] - 60) / 2, p[2]); scene.add(b);
+  });
+  const lbeam = new THREE.Group(); lbeam.position.set(2300, 172, -2300); scene.add(lbeam);
+  (function () { const ge = new THREE.CylinderGeometry(2, 70, 1600, 14, 1, true); ge.translate(0, -800, 0); ge.rotateZ(Math.PI / 2); for (const s of [0, Math.PI]) { const b = new THREE.Mesh(ge, new THREE.MeshBasicMaterial({ color: new THREE.Color(1.0, 0.95, 0.7), transparent: true, opacity: 0.07, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false })); b.rotation.y = s; b.frustumCulled = false; lbeam.add(b); } lbeam.add(new THREE.Mesh(new THREE.SphereGeometry(6, 10, 8), new THREE.MeshBasicMaterial({ color: new THREE.Color(5, 4.5, 3), fog: false }))); })();
   // lightning
   const bolt = new THREE.Line(new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(new Float32Array(14 * 3), 3)), new THREE.LineBasicMaterial({ color: new THREE.Color(6, 6, 8), fog: false })); bolt.frustumCulled = false; bolt.visible = false; scene.add(bolt);
   let nextBolt = 5, flash = 0;
@@ -626,6 +725,7 @@ const life = (function () {
   addEventListener('keydown', function (e) { if (e.code !== 'KeyM' || e.repeat) return; if (!ac) { try { ac = new (window.AudioContext || window.webkitAudioContext)(); sg = ac.createGain(); sg.gain.value = 0; sf = ac.createBiquadFilter(); sf.type = 'lowpass'; sf.frequency.value = 300; sf.connect(sg); sg.connect(ac.destination); for (const d of [0, 7, -5]) { const o = ac.createOscillator(); o.type = 'sawtooth'; o.detune.value = d; o.connect(sf); o.start(); so.push(o); } const sub = ac.createOscillator(); sub.type = 'sine'; sub.frequency.value = 41; const g2 = ac.createGain(); g2.gain.value = 0.5; sub.connect(g2); g2.connect(sg); sub.start(); } catch (err) { return; } } sOn = !sOn; ac.resume(); sg.gain.setTargetAtTime(sOn ? 0.07 : 0, ac.currentTime, 0.2); });
   return function (dt, boost) {
     for (const c of cars) loopPos(time * 62 + c.off, c.g);
+    station.rotation.y = time * 0.03; for (const h of holos) { h.rotation.y = time * h.userData.w; h.rotation.x = Math.sin(time * 0.2 + h.userData.w * 9) * 0.3; } lbeam.rotation.y = time * 0.5;
     for (const k of koi) { const a = k.ph - time * k.w; k.g.position.set(Math.cos(a) * k.r, k.y + Math.sin(time * 0.3 + k.ph) * 30, Math.sin(a) * k.r); k.g.rotation.y = (k.w > 0 ? Math.PI / 2 : -Math.PI / 2) - a; }
     for (const b of blimps) { const a = b.ph - time * b.w; b.g.position.set(Math.cos(a) * b.r, b.y, Math.sin(a) * b.r); b.g.rotation.y = (b.w > 0 ? Math.PI / 2 : -Math.PI / 2) - a; }
     for (const s of swarms) { const m = MEGA[s.i], a = time * 0.05 + s.i * 2; s.u.set(m[0] + Math.cos(a) * 220, 200 + s.i * 60 + Math.sin(time * 0.1 + s.i) * 60, m[1] + Math.sin(a) * 220); }
@@ -721,7 +821,7 @@ function update(dt) {
   tB.copy(P).addScaledVector(F, 34); tB.y += 2.2; camera.lookAt(tB); camera.rotateZ(roll * 0.28);
   const fov = (camera.aspect < 1 ? 86 : 68) + clamp((speed - 78) / 160, 0, 1) * 26; if (Math.abs(camera.fov - fov) > 0.05) { camera.fov += (fov - camera.fov) * Math.min(1, dt * 4); camera.updateProjectionMatrix(); }
   sky.position.copy(camera.position); moon.position.copy(camera.position).addScaledVector(MOOND, 9000);
-  rain.uniforms.cam.value.copy(camera.position); rain.uniforms.k.value = clamp((1100 - camera.position.y) / 200, 0, 1);
+  rain.uniforms.cam.value.copy(camera.position); rain.uniforms.k.value = clamp((1100 - camera.position.y) / 200, 0, 1) * (camera.position.y < 108 && zoneOf(camera.position.x, camera.position.z) === 'under' && !(Math.abs(camera.position.x + 1360) < 400 && Math.abs(camera.position.z + 1440) < 150) ? 0 : 1);
   // ship fx
   const th = clamp(speed / 240, 0, 1);
   for (const n of nozzles) { if (n.userData.flame) { n.scale.set(1, 1.5 + th * 6 + Math.sin(time * 60) * 0.3, 1); n.position.z = 4.5 + n.scale.y * 0.5; } else n.material.color.setRGB(1.4 + th * 2.2, 0.3 + th * 0.6, 1.2 + th * 1.8); }
@@ -742,7 +842,7 @@ function update(dt) {
   for (let i = 0; i < climbers.length; i++) climbers[i].position.set(0, 950 + ((time * 160 + i * 1100) % 4400), 0);
   for (const b of boards) b.m.material.opacity = 0.9 + Math.sin(time * 21 + b.p.x) * 0.05;
   // hud
-  const z = zoneOf(P.x, P.z); if (z !== zone) { zone = z; $('zone').textContent = ZNAME[z]; if (started) { $('big').textContent = ZNAME[z]; $('big').style.opacity = 1; bigT = 2.6; } }
+  const z = P.y > 3300 ? 'station' : zoneOf(P.x, P.z); if (z !== zone) { zone = z; $('zone').textContent = ZNAME[z]; if (started) { $('big').textContent = ZNAME[z]; $('big').style.opacity = 1; bigT = 2.6; } }
   if (bigT > 0) { bigT -= dt; if (bigT <= 0) $('big').style.opacity = 0; }
   current = null; for (const b of boards) if (P.distanceTo(b.p) < 260) current = b;
   const pr = $('prompt'); if (current && started) { const tx = (isTouch ? 'USE' : 'E') + '  ·  ' + current.label; if (pr.textContent !== tx) pr.textContent = tx; pr.style.opacity = 1; } else pr.style.opacity = 0;
