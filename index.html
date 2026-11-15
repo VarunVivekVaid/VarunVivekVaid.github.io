@@ -264,7 +264,7 @@ for (const key in LOT) {
   // cables and bridges to neighbours
   for (const dir of [[1, 0], [0, 1]]) {
     const di = dir[0], nb = LOT[(l.i + di) + ',' + (l.j + dir[1])]; if (!nb) continue;
-    const bl = Math.abs(di ? (l.i + 1) * CELL : (l.j + 1) * CELL); if (bl === 800 || bl === 560) continue;
+    const bl = Math.abs(di ? (l.i + 1) * CELL : (l.j + 1) * CELL); if (bl === 800 || bl === 560 || bl === 240 || bl === 400 || bl === 320 || bl === 640) continue;
     const a0 = di ? Math.max(l.z - l.dp / 2, nb.z - nb.dp / 2) : Math.max(l.x - l.w / 2, nb.x - nb.w / 2), a1 = di ? Math.min(l.z + l.dp / 2, nb.z + nb.dp / 2) : Math.min(l.x + l.w / 2, nb.x + nb.w / 2);
     if (a1 - a0 < 6) continue;
     const e1 = di ? l.x + l.w / 2 : l.z + l.dp / 2, e2 = di ? nb.x - nb.w / 2 : nb.z - nb.dp / 2, hm = Math.min(l.y0 + l.h, nb.y0 + nb.h);
@@ -348,12 +348,19 @@ for (const x of [-150, 150]) { const tc = x < 0 ? PAL.mag : PAL.cyan; addB(x, 0,
 // strip sky bridges, stalls
 for (let x = 420; x < 1900; x += 200 + R() * 60) { if (Math.abs(x - 560) < 40 || Math.abs(x - 800) < 40) continue; addB(x, 104 + R() * 60, STRIPZ, 14, 7, 104, { tint: PAL.warm, lit: 0.8, trim: 1, corner: 1, trimc: pick([PAL.mag, PAL.cyan, PAL.yel]) }); }
 for (let x = 262; x < 1950; x += 7 + R() * 14) for (const s of [-1, 1]) if (R() < 0.6) addB(x, 0, STRIPZ + s * (46.5 + R() * 2), 3.5 + R() * 3, 2.8 + R() * 1.4, 3, { sty: 5, nc: true, tint: pick([PAL.yel, PAL.mag, PAL.cyan, PAL.org, PAL.warm]) });
-// elevated highways and the train loop
+// elevated highways, the train loop and the cross-city rail lines
+const RAILS = [{ ax: 'x', c: -240, y: 19, lo: 2013, hi: 2013 }, { ax: 'x', c: 400, y: 19, lo: 2013, hi: 2013 }, { ax: 'z', c: -320, y: 33, lo: 2013, hi: 1990 }, { ax: 'z', c: 640, y: 33, lo: 2013, hi: 1990 }];
 (function () {
   const hw = { sty: 4, trim: 1, trimc: PAL.yel }, rl = { sty: 4, trim: 1, trimc: PAL.cyan };
   for (const c of [-800, 800]) for (let t = -1960; t < 2000; t += 80) { addB(c, 53.5, t, 20, 3, 80, hw); addB(t, 53.5, c, 80, 3, 20, hw); addB(c, 0, t, 5, 53.5, 5, CL); addB(t, 0, c, 5, 53.5, 5, CL); }
   for (const c of [-560, 560]) for (let t = -520; t < 560; t += 80) { addB(c, 92.5, t, 7, 2.5, 80, rl); addB(t, 92.5, c, 80, 2.5, 7, rl); addB(c, 0, t, 3.5, 92.5, 3.5, CL); addB(t, 0, c, 3.5, 92.5, 3.5, CL); }
   for (const sx of [-1, 1]) for (const sz of [-1, 1]) addB(sx * 560, 92.5, sz * 560, 7, 2.5, 7, rl);
+  const rl2 = Object.assign({}, rl, { rail: 1 }), term = { sty: 4, trim: 1, trimc: PAL.cyan, noads: true, rail: 1 };
+  for (const r of RAILS) { const ew = r.ax === 'x';
+    for (let t = -1920; t <= 1920; t += 80) { if (ew) addB(t, r.y, r.c, 80, 2, 10, rl2); else addB(r.c, r.y, t, 10, 2, 80, rl2); }
+    for (let k = 0; k < 25; k++) { const t = -1880 + k * 160, q = k % 2 ? 1 : -1, px = ew ? t : r.c + q * 10.5, pz = ew ? r.c + q * 10.5 : t; if (pz > -20 && pz < 100 && px > 240 && px < 1970) continue; const y0 = zoneOf(px, pz) === 'drowned' ? -40 : 0; addB(px, y0, pz, 1.6, r.y - y0, 1.6, CL); if (ew) addB(t, r.y - 2, r.c + q * 7.75, 2, 2, 5.5, CL); else addB(r.c + q * 7.75, r.y - 2, t, 5.5, 2, 2, CL); }
+    for (const s of [-1, 1]) { const lim = s < 0 ? r.lo : r.hi; if (lim > 2000) { if (ew) addB(s * 1980, r.y, r.c, 40, 2, 10, rl2); else addB(r.c, r.y, s * 1980, 10, 2, 40, rl2); continue; } const tx = ew ? s * 1990 : r.c, tz = ew ? r.c : s * 1990, y0 = zoneOf(tx, tz) === 'drowned' ? -40 : 0; if (ew) addB(tx, r.y - 3, tz, 60, 12, 14, term); else addB(tx, r.y - 3, tz, 14, 12, 60, term); addB(tx, y0, tz, 4, r.y - 3 - y0, 4, CL); }
+  }
 })();
 // rooftop clutter
 for (const rf of ROOFS) {
@@ -827,6 +834,11 @@ const life = (function () {
     const st = new THREE.Mesh(new THREE.BoxGeometry(4.8, 0.3, 26.1), new THREE.MeshBasicMaterial({ color: new THREE.Color(2.2, 0.3, 1.5) })); st.position.y = -1.6; g.add(st);
     if (t >= 5) g.scale.setScalar(1.6); scene.add(g); cars.push({ g: g, sky: t >= 5, off: t < 5 ? t * 896 - k * 28 : (t - 5) * 3560 - k * 45 });
   }
+  const rcars = [], rcG = new THREE.BoxGeometry(4.6, 4.4, 26), rsG = new THREE.BoxGeometry(4.75, 1.2, 23), ruG = new THREE.BoxGeometry(4.8, 0.3, 26.1), RCOL = [new THREE.Color(2.0, 1.6, 0.4), new THREE.Color(2.2, 0.4, 1.4), new THREE.Color(0.3, 1.7, 2.0), new THREE.Color(2.2, 0.8, 0.2)], ruM = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.3, 1.7, 2.0) });
+  for (let li = 0; li < RAILS.length; li++) for (const dir of [1, -1]) for (let tn = 0; tn < 2; tn++) for (let k = 0; k < (isTouch ? 4 : 6); k++) {
+    const g = new THREE.Group(); g.add(new THREE.Mesh(rcG, dark)); g.add(new THREE.Mesh(rsG, new THREE.MeshBasicMaterial({ color: RCOL[li] }))); const u = new THREE.Mesh(ruG, ruM); u.position.y = -1.6; g.add(u);
+    if (RAILS[li].ax === 'x') g.rotation.y = Math.PI / 2; scene.add(g); rcars.push({ g: g, r: RAILS[li], dir: dir, off: li * 977 + (dir > 0 ? 0 : 1080) + tn * 2160 - k * 28 * dir });
+  }
   const skyRail = new THREE.Mesh(new THREE.TorusGeometry(1700, 0.8, 5, 240), new THREE.MeshBasicMaterial({ color: new THREE.Color(0.2, 1.2, 1.5) })); skyRail.rotation.x = Math.PI / 2; skyRail.position.y = 715; scene.add(skyRail);
   function loopPos(s, g) { s = ((s % 4480) + 4480) % 4480; const k = Math.floor(s / 1120), t = s - k * 1120 - 560; if (k === 0) g.position.set(t, 97.4, -560); else if (k === 1) g.position.set(560, 97.4, t); else if (k === 2) g.position.set(-t, 97.4, 560); else g.position.set(-560, 97.4, -t); g.rotation.y = k % 2 ? 0 : Math.PI / 2; }
   // hologram koi
@@ -918,6 +930,7 @@ const life = (function () {
   addEventListener('keydown', function (e) { if (e.code !== 'KeyM' || e.repeat) return; if (!ac) { try { ac = new (window.AudioContext || window.webkitAudioContext)(); sg = ac.createGain(); sg.gain.value = 0; sf = ac.createBiquadFilter(); sf.type = 'lowpass'; sf.frequency.value = 300; sf.connect(sg); sg.connect(ac.destination); for (const d of [0, 7, -5]) { const o = ac.createOscillator(); o.type = 'sawtooth'; o.detune.value = d; o.connect(sf); o.start(); so.push(o); } const sub = ac.createOscillator(); sub.type = 'sine'; sub.frequency.value = 41; const g2 = ac.createGain(); g2.gain.value = 0.5; sub.connect(g2); g2.connect(sg); sub.start(); } catch (err) { return; } } sOn = !sOn; ac.resume(); sg.gain.setTargetAtTime(sOn ? 0.07 : 0, ac.currentTime, 0.2); });
   return function (dt, boost) {
     for (const c of cars) { if (c.sky) { const a = (time * 110 + c.off) / 1700; c.g.position.set(Math.cos(a) * 1700, 720, Math.sin(a) * 1700); c.g.rotation.y = -a; } else loopPos(time * 62 + c.off, c.g); }
+    for (const c of rcars) { const s = (((time * 74 * c.dir + c.off) % 4320) + 4320) % 4320 - 2160, vis = s > -c.r.lo && s < c.r.hi; c.g.visible = vis; if (!vis) continue; const ln = c.dir * 2.6; if (c.r.ax === 'x') c.g.position.set(s, c.r.y + 4.4, c.r.c + ln); else c.g.position.set(c.r.c + ln, c.r.y + 4.4, s); }
     station.rotation.y = time * 0.03; for (const h of holos) { h.rotation.y = time * h.userData.w; h.rotation.x = Math.sin(time * 0.2 + h.userData.w * 9) * 0.3; } lbeam.rotation.y = time * 0.5;
     for (const k of koi) { const a = k.ph - time * k.w; k.g.position.set(Math.cos(a) * k.r, k.y + Math.sin(time * 0.3 + k.ph) * 30, Math.sin(a) * k.r); k.g.rotation.y = (k.w > 0 ? Math.PI / 2 : -Math.PI / 2) - a; }
     for (const b of blimps) { const a = b.ph - time * b.w; b.g.position.set(Math.cos(a) * b.r, b.y, Math.sin(a) * b.r); b.g.rotation.y = (b.w > 0 ? Math.PI / 2 : -Math.PI / 2) - a; }
@@ -1292,6 +1305,7 @@ const MAP = (function () {
     for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) { const z = zoneOf((i + 0.5) / n * 2 * WR - WR, (j + 0.5) / n * 2 * WR - WR), c = ZC[z]; g.fillStyle = z === 'edge' ? '#03101a' : 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',0.09)'; g.fillRect(i * q, j * q, q + 0.5, q + 0.5); }
     for (const b of B) { if (b.rx || b.rz || b.y - b.sy / 2 > 6 || b.sx < 8 || b.sz < 8) continue; const c = ZC[zoneOf(b.x, b.z)] || ZC.city, al = 0.25 + 0.65 * Math.min(1, (b.y + b.sy / 2) / 420); g.fillStyle = 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + al.toFixed(2) + ')'; g.fillRect((b.x - b.sx / 2 + WR) * M, (b.z - b.sz / 2 + WR) * M, b.sx * M, b.sz * M); }
     g.strokeStyle = 'rgba(25,240,255,0.45)'; g.lineWidth = 2; g.strokeRect((WR - 2040) * M, (WR - 2040) * M, 4080 * M, 4080 * M);
+    g.strokeStyle = 'rgba(255,70,200,0.75)'; g.lineWidth = 4; for (const r of RAILS) { g.beginPath(); if (r.ax === 'x') { g.moveTo((WR - 2020) * M, (r.c + WR) * M); g.lineTo((WR + 2020) * M, (r.c + WR) * M); } else { g.moveTo((r.c + WR) * M, (WR - 2020) * M); g.lineTo((r.c + WR) * M, (WR + 2020) * M); } g.stroke(); } g.strokeRect((WR - 560) * M, (WR - 560) * M, 1120 * M, 1120 * M);
   })();
   const wrap = document.createElement('div'); wrap.style.cssText = 'position:fixed;right:1.1rem;' + (isTouch ? 'top:.6rem' : 'bottom:1.1rem') + ';width:' + S + 'px;height:' + S + 'px;z-index:4;pointer-events:none;display:none;border-radius:50%;box-shadow:0 0 0 1px rgba(25,240,255,.6),0 0 0 5px rgba(4,7,15,.8),0 0 0 6px rgba(252,238,10,.45),0 0 28px rgba(25,240,255,.3)';
   const cv = document.createElement('canvas'); cv.width = cv.height = Math.round(S * DPR); cv.style.cssText = 'width:100%;height:100%;border-radius:50%;display:block'; wrap.appendChild(cv); document.body.appendChild(wrap);
@@ -1305,7 +1319,6 @@ const MAP = (function () {
     if (!this.blank) { c.translate(H, H); c.rotate(yaw); c.scale(ppm / M, ppm / M); c.drawImage(img, -(P.x + WR) * M, -(P.z + WR) * M); } c.restore();
     const gr = c.createRadialGradient(H, H, 4, H, H, H * 0.9); gr.addColorStop(0, 'rgba(252,238,10,0.22)'); gr.addColorStop(1, 'rgba(252,238,10,0)'); c.fillStyle = gr; c.beginPath(); c.moveTo(H, H); c.arc(H, H, H * 0.9, -Math.PI / 2 - 0.45, -Math.PI / 2 + 0.45); c.closePath(); c.fill();
     c.strokeStyle = 'rgba(25,240,255,0.18)'; c.lineWidth = 1; c.beginPath(); c.arc(H, H, H * 0.5, 0, 6.283); c.stroke();
-    if (!this.blank) for (const b of RACE.bikes) { const q = mp(b.p.x, b.p.z); if (!q[2]) { c.fillStyle = b.hex; c.fillRect(q[0] - 1.5, q[1] - 1.5, 3, 3); } }
     c.font = '700 9px Rajdhani, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'alphabetic';
     if (!this.blank) for (const l of LM) { const q = mp(l[0], l[1]), s = q[2] ? 3 : 4.5; c.fillStyle = l[2]; c.strokeStyle = '#04070f'; c.lineWidth = 2; c.beginPath(); c.moveTo(q[0], q[1] - s); c.lineTo(q[0] + s, q[1]); c.lineTo(q[0], q[1] + s); c.lineTo(q[0] - s, q[1]); c.closePath(); c.stroke(); c.fill(); if (!q[2] && !isTouch) { c.lineWidth = 3; c.strokeText(l[3], q[0], q[1] - 7); c.fillText(l[3], q[0], q[1] - 7); } }
     if (this.extra) this.extra(c, mp, H);
