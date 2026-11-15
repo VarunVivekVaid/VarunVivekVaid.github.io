@@ -59,7 +59,7 @@ canvas{display:block}
   <h1>VAID CITY</h1>
   <p class="by">VARUN VAID</p>
   <div id="go">ENTER</div>
-  <div class="keys" id="keys">Mouse steers &middot; W accelerate &middot; S brake to a full stop &middot; X hover<br>Shift boost &middot; Space drift &middot; E use &middot; R reset &middot; M sound &middot; fly through the red ring on the floating platform for Iron Rain &middot; dive into the whirlpool in the Drowned Quarter</div>
+  <div class="keys" id="keys">Mouse steers &middot; W accelerate &middot; S brake to a full stop &middot; X hover<br>Shift boost &middot; Space drift &middot; E use &middot; R reset &middot; M sound &middot; fly through the red ring on the floating platform for Iron Rain &middot; any water can be dived under &middot; the whirlpool in the Drowned Quarter leads to the Deep</div>
   <div class="links"><a href="https://www.instagram.com/varunvivekvaid/" target="_blank" rel="noopener">Instagram</a><a href="https://www.linkedin.com/in/varunvivekvaid/" target="_blank" rel="noopener">LinkedIn</a></div>
 </div>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}</script>
@@ -1657,6 +1657,7 @@ const SEA = (function () {
 // ---------- state ----------
 const P = new THREE.Vector3(0, 230, -1500), V = new THREE.Vector3(), F = new THREE.Vector3(), tA = new THREE.Vector3(), tB = new THREE.Vector3(), tC = new THREE.Vector3();
 let yaw = Math.PI, pitch = 0, roll = 0, speed = 60, started = false, shake = 0, zone = '', bigT = 0, yawRate = 0, lastYaw = Math.PI, current = null, time = 0;
+let uwOn = false; const UWC = new THREE.Color(0.0, 0.045, 0.06); function wetAt(x, z) { return Math.abs(x) > 2040 || Math.abs(z) > 2040 || zoneOf(x, z) === 'drowned'; }
 let hover = false; const keys = {}, stick = { x: 0, y: 0, id: null, ox: 0, oy: 0 };
 function reset() { P.set(0, 230, -1500); V.set(0, 0, 0); yaw = Math.PI; pitch = 0; speed = 60; lastYaw = yaw; camera.position.set(0, 236, -1520); }
 function collide() {
@@ -1712,11 +1713,12 @@ function update(dt) {
   pitch = clamp(pitch, -1.15, 1.15);
   const boost = started && keys.ShiftLeft, brake = started && keys.KeyS, drift = started && keys.Space;
   if (boost || keys.KeyW) hover = false; const target = !started ? 45 : brake || hover ? 0 : boost ? 240 : keys.KeyW || keys.ArrowUp ? 135 : 78;
-  speed += (target * (SEA.on() ? 0.62 : 1) - speed) * Math.min(1, dt * (boost ? 2.2 : brake || hover ? 3.4 : 1.1)); if (speed < 0.6 && (brake || hover)) speed = 0;
+  speed += (target * (SEA.on() || P.y < 0 ? 0.62 : 1) - speed) * Math.min(1, dt * (boost ? 2.2 : brake || hover ? 3.4 : 1.1)); if (speed < 0.6 && (brake || hover)) speed = 0;
   F.set(-Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch));
   tA.copy(F).multiplyScalar(speed); V.lerp(tA, 1 - Math.exp(-(drift ? 0.8 : 5.5) * dt));
-  P.addScaledVector(V, dt);
-  if (!SEA.on() && P.y < 4) { P.y = 4; if (V.y < 0) V.y = 0; if (pitch < 0) pitch *= 0.9; }
+  const pxo = P.x, pzo = P.z; P.addScaledVector(V, dt);
+  if (!SEA.on() && P.y < 2 && !wetAt(P.x, P.z) && wetAt(pxo, pzo)) { P.x = pxo; P.z = pzo; V.x = V.z = 0; }
+  const flo = !SEA.on() && wetAt(P.x, P.z) ? -140 : 4; if (!SEA.on() && P.y < flo) { P.y = flo; if (V.y < 0) V.y = 0; if (pitch < 0) pitch *= 0.9; }
   if (P.y > 4200) { P.y = 4200; if (pitch > 0) pitch *= 0.9; }
   const dd = Math.hypot(P.x, P.z); if (dd > 2900) { P.x *= 2900 / dd; P.z *= 2900 / dd; }
   collide();
@@ -1733,6 +1735,8 @@ function update(dt) {
   const fov = (camera.aspect < 1 ? 86 : 68) + clamp((speed - 78) / 160, 0, 1) * 26; if (Math.abs(camera.fov - fov) > 0.05) { camera.fov += (fov - camera.fov) * Math.min(1, dt * 4); camera.updateProjectionMatrix(); }
   sky.position.copy(camera.position); moon.position.copy(camera.position).addScaledVector(MOOND, 9000);
   rain.uniforms.cam.value.copy(camera.position); rain.uniforms.k.value = clamp((1100 - camera.position.y) / 200, 0, 1) * (camera.position.y < 108 && zoneOf(camera.position.x, camera.position.z) === 'under' && !(Math.abs(camera.position.x + 1360) < 400 && Math.abs(camera.position.z + 1440) < 150) ? 0 : 1);
+  const uw = !SEA.on() && camera.position.y < 0 && wetAt(camera.position.x, camera.position.z); if (uw) rain.uniforms.k.value = 0;
+  if (!SEA.on() && uw !== uwOn) { uwOn = uw; sky.visible = moon.visible = mirror.visible = !uw; scene.background = uw ? UWC : null; scene.fog.color.copy(uw ? UWC : FOGC); scene.fog.density = uw ? 0.0032 : 0.00045; ground.material.side = uw ? THREE.DoubleSide : THREE.FrontSide; ground.material.needsUpdate = true; }
   // ship fx
   const th = clamp(speed / 240, 0, 1);
   for (const n of nozzles) { if (n.userData.flame) { n.scale.set(1, 1.5 + th * 6 + Math.sin(time * 60) * 0.3, 1); n.position.z = 4.5 + n.scale.y * 0.5; } else n.material.color.setRGB(1.4 + th * 2.2, 0.3 + th * 0.6, 1.2 + th * 1.8); }
