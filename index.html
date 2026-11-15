@@ -59,7 +59,7 @@ canvas{display:block}
   <h1>VAID CITY</h1>
   <p class="by">VARUN VAID</p>
   <div id="go">ENTER</div>
-  <div class="keys" id="keys">Mouse steers &middot; W accelerate &middot; S brake<br>Shift boost &middot; Space drift &middot; E use &middot; R reset &middot; M sound</div>
+  <div class="keys" id="keys">Mouse steers &middot; W accelerate &middot; S brake<br>Shift boost &middot; Space drift &middot; E use &middot; R reset &middot; M sound &middot; B Iron Rain</div>
   <div class="links"><a href="https://www.instagram.com/varunvivekvaid/" target="_blank" rel="noopener">Instagram</a><a href="https://www.linkedin.com/in/varunvivekvaid/" target="_blank" rel="noopener">LinkedIn</a></div>
 </div>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}</script>
@@ -96,7 +96,7 @@ const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
 const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth / 2, innerHeight / 2), 0.5, 0.5, 0.95);
 composer.addPass(bloom); composer.addPass(new OutputPass());
-const T = { value: 0 };
+const T = { value: 0 }, ALERT = { value: 0 };
 function fogMat(o) { o.fog = true; o.uniforms = THREE.UniformsUtils.merge([THREE.UniformsLib.fog, o.uniforms || {}]); const m = new THREE.ShaderMaterial(o); m.uniforms.time = T; return m; }
 const H21 = 'float h21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }\nfloat n2(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(h21(i), h21(i + vec2(1.0, 0.0)), f.x), mix(h21(i + vec2(0.0, 1.0)), h21(i + vec2(1.0, 1.0)), f.x), f.y); }\n';
 
@@ -363,14 +363,14 @@ const BAYS = [
 })();
 
 // ---------- buildings ----------
-const bMat = fogMat({ uniforms: { lightDir: { value: MOOND.clone() } },
-  vertexShader: ['attribute vec3 aTint; attribute vec3 aTrim; attribute vec4 aInfo; attribute float aSty;', 'varying vec3 vL; varying vec3 vN; varying vec3 vS; varying vec3 vTint; varying vec3 vTrim; varying vec4 vInfo; varying float vDist; varying float vSty; varying vec3 vWash; varying float vBaseY;', '#include <fog_pars_vertex>',
+const bMat = fogMat({ uniforms: { lightDir: { value: MOOND.clone() }, uPow: { value: [1, 1, 1, 1, 1, 1, 1] } },
+  vertexShader: ['uniform float uPow[7]; varying float vPow; attribute vec3 aTint; attribute vec3 aTrim; attribute vec4 aInfo; attribute float aSty;', 'varying vec3 vL; varying vec3 vN; varying vec3 vS; varying vec3 vTint; varying vec3 vTrim; varying vec4 vInfo; varying float vDist; varying float vSty; varying vec3 vWash; varying float vBaseY;', '#include <fog_pars_vertex>',
     'void main(){ vec3 s = vec3(length(instanceMatrix[0].xyz), length(instanceMatrix[1].xyz), length(instanceMatrix[2].xyz));', 'vS = s; vL = position * s; vN = normal; vTint = aTint; vTrim = aTrim; vInfo = aInfo; vSty = aSty;',
     'vec4 c = modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0); vec2 w = c.xz; vWash = vec3(0.5, 0.12, 0.7);',
     'if (length(w) < 720.0) vWash = vec3(0.15, 0.3, 0.9);', 'if (w.x > 250.0 && w.x < 1960.0 && abs(w.y - 40.0) < 380.0) vWash = vec3(0.95, 0.6, 0.05);', 'if (w.y > 820.0 && w.y < 2000.0 && abs(w.x) < 1000.0) vWash = vec3(0.0, 0.5, 0.45);', 'if (w.x > 700.0 && w.y < -520.0) vWash = vec3(0.45, 0.6, 1.0);', 'if (w.x < -760.0 && w.y < -900.0) vWash = vec3(1.0, 0.3, 0.05);', 'if (w.x < -1640.0 && w.y > -800.0 && w.y < 1300.0) vWash = vec3(0.9, 0.45, 0.1);', 'if ((abs(w.x) > 2045.0 || abs(w.y) > 2045.0) && !(w.x < -2040.0 && w.y > -800.0 && w.y < 1300.0)) vWash = vec3(0.1, 0.3, 0.5);',
-    'vBaseY = abs(c.y) - s.y * 0.5;',
+    'vPow = uPow[0]; if (length(w) < 720.0) vPow = uPow[1]; if (w.x > 250.0 && w.x < 1960.0 && abs(w.y - 40.0) < 380.0) vPow = uPow[2]; if (w.y > 820.0 && abs(w.x) < 1000.0) vPow = uPow[3]; if (w.x > 700.0 && w.y < -520.0) vPow = uPow[4]; if (w.x < -760.0 && w.y < -900.0) vPow = uPow[5]; if (w.x < -1640.0 && w.y > -800.0 && w.y < 1300.0) vPow = uPow[6];', 'vBaseY = abs(c.y) - s.y * 0.5;',
     'vec4 mvPosition = modelViewMatrix * instanceMatrix * vec4(position, 1.0); vDist = -mvPosition.z; gl_Position = projectionMatrix * mvPosition;', '#include <fog_vertex>', '}'].join('\n'),
-  fragmentShader: [H21, 'uniform vec3 lightDir; varying vec3 vL; varying vec3 vN; varying vec3 vS; varying vec3 vTint; varying vec3 vTrim; varying vec4 vInfo; varying float vDist; varying float vSty; varying vec3 vWash; varying float vBaseY;', '#include <fog_pars_fragment>',
+  fragmentShader: [H21, 'uniform vec3 lightDir; varying float vPow; varying vec3 vL; varying vec3 vN; varying vec3 vS; varying vec3 vTint; varying vec3 vTrim; varying vec4 vInfo; varying float vDist; varying float vSty; varying vec3 vWash; varying float vBaseY;', '#include <fog_pars_fragment>',
     'void main(){ float far = smoothstep(700.0, 2000.0, vDist); float seed = vInfo.x;',
     'float nl = dot(normalize(vN), lightDir); float tone = nl > 0.35 ? 1.0 : (nl > -0.1 ? 0.5 : 0.18);',
     'vec3 base = (vec3(0.010, 0.012, 0.028) + vWash * 0.045) * (0.3 + tone * 1.25); vec3 col = base; float ew = 0.2 + vDist * 0.0013; float edge = 0.0;',
@@ -408,7 +408,7 @@ const bMat = fogMat({ uniforms: { lightDir: { value: MOOND.clone() } },
     '  col = base * 1.15; if (vInfo.z > 0.5) col += vTrim * smoothstep(1.4, 0.4, e) * 1.7;',
     '}',
     'col = mix(col, (vec3(0.14, 0.18, 0.4) + vWash * 0.16) * (0.35 + tone), edge * 0.8 * (1.0 - far * 0.7) * step(vSty, 4.5));',
-    'gl_FragColor = vec4(col, 1.0);', '#include <fog_fragment>', '}'].join('\n')
+    'col = mix(base * 0.5, col, vPow);', 'gl_FragColor = vec4(col, 1.0);', '#include <fog_fragment>', '}'].join('\n')
 });
 const city = new THREE.Group(), mirror = new THREE.Group(); mirror.scale.y = -1; scene.add(city); scene.add(mirror);
 const grid = {};
@@ -565,14 +565,14 @@ const atlas = (function () {
   const n = S.length, geo = new THREE.PlaneGeometry(1, 1), uv = new Float32Array(n * 4), ph = new Float32Array(n);
   const mat = fogMat({ side: THREE.DoubleSide, uniforms: { map: { value: atlas } },
     vertexShader: ['uniform float time; attribute vec4 aUv; attribute float aPh; varying vec4 vCell; varying float vPh; varying vec2 vP;', '#include <fog_pars_vertex>', 'void main(){ vec2 off = aUv.xy; if (aPh < 0.0) off = vec2(mod(floor(time * 0.22 - aPh), 10.0) * ' + PW.toFixed(8) + ', 0.125); vCell = vec4(off, aUv.zw); vPh = aPh; vP = uv; vec4 mvPosition = modelViewMatrix * instanceMatrix * vec4(position, 1.0); gl_Position = projectionMatrix * mvPosition;', '#include <fog_vertex>', '}'].join('\n'),
-    fragmentShader: ['uniform sampler2D map; uniform float time; varying vec4 vCell; varying float vPh; varying vec2 vP;', '#include <fog_pars_fragment>',
+    fragmentShader: ['uniform float alert; uniform sampler2D map; uniform float time; varying vec4 vCell; varying float vPh; varying vec2 vP;', '#include <fog_pars_fragment>',
       'void main(){ vec2 q = vP; if (!gl_FrontFacing) q.x = 1.0 - q.x; float gt = step(0.965, fract(sin(floor(time * 2.0 + vPh * 13.0) * 91.7) * 43758.5)); q.x = clamp(q.x + (fract(sin(floor(q.y * 18.0) * 37.1 + floor(time * 24.0)) * 4375.8) - 0.5) * 0.14 * gt, 0.0, 1.0);',
       'vec3 c = texture2D(map, q * vCell.zw + vCell.xy).rgb; float fl = 0.88 + 0.12 * sin(time * 9.0 + vPh * 7.0); float bz = step(0.965, fract(sin(floor(time * 14.0 + vPh * 31.0) * 12.9898) * 43758.5453)); fl *= 1.0 - 0.7 * bz * step(0.7, fract(vPh * 0.37));',
-      'if (vPh < 0.0) { float sw = fract(time * 0.22 - vPh); fl = 0.62 + 0.9 * smoothstep(0.06, 0.0, sw); c *= 0.75 + 0.25 * step(0.5, fract(vP.y * 70.0)); c += vec3(0.25, 0.9, 1.0) * smoothstep(0.012, 0.0, abs(vP.y - fract(time * 0.13 - vPh))) * 0.5; }', 'gl_FragColor = vec4(c * c * 2.2 * fl + c * 0.25, 1.0);', '#include <fog_fragment>', '}'].join('\n') });
+      'if (vPh < 0.0) { float sw = fract(time * 0.22 - vPh); fl = 0.62 + 0.9 * smoothstep(0.06, 0.0, sw); c *= 0.75 + 0.25 * step(0.5, fract(vP.y * 70.0)); c += vec3(0.25, 0.9, 1.0) * smoothstep(0.012, 0.0, abs(vP.y - fract(time * 0.13 - vPh))) * 0.5; }', 'if (alert > 0.0) c = mix(c, vec3(dot(c, vec3(0.5)) * 1.7, 0.0, 0.0) * (0.3 + 0.7 * step(0.5, fract(time * 1.5 + vPh * 0.1))), alert);', 'gl_FragColor = vec4(c * c * 2.2 * fl + c * 0.25, 1.0);', '#include <fog_fragment>', '}'].join('\n') });
   const mesh = new THREE.InstancedMesh(geo, mat, n), m = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), s = new THREE.Vector3(), Y = new THREE.Vector3(0, 1, 0);
   for (let i = 0; i < n; i++) { const g = S[i]; q.setFromAxisAngle(Y, g.ry); m.compose(p.set(g.x, g.y, g.z), q, s.set(g.w, g.h, 1)); mesh.setMatrixAt(i, m); uv.set(uvOf(g), i * 4); ph[i] = g.ph; }
   geo.setAttribute('aUv', new THREE.InstancedBufferAttribute(uv, 4)); geo.setAttribute('aPh', new THREE.InstancedBufferAttribute(ph, 1));
-  mesh.frustumCulled = false; city.add(mesh);
+  mat.uniforms.alert = ALERT; mesh.frustumCulled = false; city.add(mesh);
   const m2 = new THREE.InstancedMesh(geo, mat, n); m2.instanceMatrix = mesh.instanceMatrix; m2.frustumCulled = false; mirror.add(m2);
   // brackets, legs and backing panels
   const fm = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ color: new THREE.Color(0.03, 0.035, 0.06) }), FR.length); q.identity();
@@ -1171,12 +1171,175 @@ const bays = (function () {
       const t = b.t, fx = t.x + b.dx * 17, fz = t.z + b.dz * 17, dist = Math.hypot(P.x - fx, P.y - 425.5, P.z - fz); b.k += ((dist < 340 ? 1 : 0) - b.k) * Math.min(1, dt * 5);
       for (const d of b.doors) d.m.position.set(fx + b.dx * 0.3 + b.sx * d.q * (7 + 13.6 * b.k), 425.5, fz + b.dz * 0.3 + b.sz * d.q * (7 + 13.6 * b.k));
       const rx = P.x - t.x, rz = P.z - t.z, a = rx * b.dx + rz * b.dz, s = rx * b.sx + rz * b.sz;
-      if (started && !dock && b.k > 0.7 && Math.abs(s) < 12.5 && P.y > 418.5 && P.y < 432.5 && a < 15 && a > -11) { dock = { t: 0, url: t.url }; ov.textContent = 'DOCKING  ·  ' + t.host.toUpperCase(); ov.style.opacity = 1; beep(520, 0.5, 880); }
+      if (started && !WAR.on() && !dock && b.k > 0.7 && Math.abs(s) < 12.5 && P.y > 418.5 && P.y < 432.5 && a < 15 && a > -11) { dock = { t: 0, url: t.url }; ov.textContent = 'DOCKING  ·  ' + t.host.toUpperCase(); ov.style.opacity = 1; beep(520, 0.5, 880); }
     }
     if (dock) { speed = Math.min(speed, 5); V.multiplyScalar(0.8); dock.t += dt; if (dock.t > 1.3 && !dock.go) { dock.go = true; location.href = dock.url; } }
     const lv = clamp(1 - (Math.hypot(P.x - mo.x, P.z - mo.z) - 120) / 600, 0.08, 1); beerM.scale.y = lv; beerM.position.y = 139 + 11 * lv; foamM.position.y = 139 + 22 * lv + 1.5;
     let left = 0; for (const c of cups) { if (!c.on) continue; left++; if (P.distanceTo(c.p) < 6.2) { c.on = false; c.g.visible = false; burst(c.p.clone(), new V3(0, 1, 0)); burst(c.p.clone(), new V3(0, 1, 0)); beep(700 - left * 30, 0.25, 180); } }
     if (!left) { rack += dt; if (rack > 3) { rack = 0; for (const c of cups) { c.on = true; c.g.visible = true; } beep(440, 0.3, 880); } }
+  };
+})();
+
+// ---------- iron rain ----------
+const WAR = (function () {
+  const V3 = THREE.Vector3, tmp = new V3(), tmp2 = new V3(), tmp3 = new V3(), ZAX = new V3(0, 0, 1), rnd = Math.random;
+  const ZI = { city: 0, spire: 1, strip: 2, drowned: 3, corp: 4, under: 5, docks: 6 }, ZN = ['OUTSKIRTS', 'THE SPIRE', 'NEON STRIP', 'DROWNED QTR', 'CORP HEIGHTS', 'UNDERCITY', 'DOCKS'], ZW = [1, 1.3, 1.3, 0.6, 1.2, 1, 0.8];
+  const st = document.createElement('style'); st.textContent = "#war{margin:0 0 1.4rem;padding:.7rem 1.6rem;border:1px solid #ff2a2a;background:rgba(70,0,0,.55);color:#fff;font:800 .9rem Orbitron,sans-serif;letter-spacing:.25em;cursor:pointer;box-shadow:0 0 22px rgba(255,40,40,.55)}#wh{position:fixed;inset:0;pointer-events:none;display:none;z-index:4;font:600 .8rem Rajdhani,sans-serif;letter-spacing:.14em;color:#fcee0a;text-transform:uppercase}#wh .tp{position:absolute;top:.9rem;left:50%;transform:translateX(-50%);text-align:center;background:rgba(0,0,0,.7);border-bottom:2px solid #ff2a2a;padding:.35rem 1rem;white-space:nowrap}#wh .tp b{color:#fff;font:800 .95rem Orbitron,sans-serif;letter-spacing:.22em;display:block}#wh .tp i{font-style:normal;color:#7dff3a}#wh .ds{position:absolute;right:.8rem;top:4.2rem;background:rgba(0,0,0,.6);padding:.4rem .6rem;line-height:1.5;font-size:.72rem}#wh .ds div{display:flex;justify-content:space-between;gap:.6rem;align-items:center}#wh s{display:inline-block;width:86px;height:7px;border:1px solid currentColor;text-decoration:none;vertical-align:middle}#wh s u{display:block;height:100%;background:currentColor;text-decoration:none}#wh .pl{position:absolute;left:50%;bottom:1.1rem;transform:translateX(-50%);background:rgba(0,0,0,.65);padding:.4rem .9rem;white-space:nowrap}#wh .pl s{width:120px;margin:0 .8rem 0 .3rem}#wm{position:fixed;left:50%;top:24%;transform:translateX(-50%) skewX(-10deg);background:#ff2a2a;color:#000;font:900 clamp(1.1rem,3.6vw,2.6rem) Orbitron,sans-serif;letter-spacing:.2em;padding:.3rem 2rem;box-shadow:8px 8px 0 #fcee0a;opacity:0;transition:opacity .2s;pointer-events:none;z-index:5;white-space:nowrap}#ws{position:fixed;left:50%;bottom:5.2rem;transform:translateX(-50%);max-width:90vw;text-align:center;background:rgba(0,0,0,.72);color:#bff;font:600 .95rem Rajdhani,sans-serif;letter-spacing:.08em;padding:.3rem .8rem;opacity:0;transition:opacity .3s;pointer-events:none;z-index:5}#wx{position:fixed;left:50%;top:50%;width:30px;height:30px;margin:-15px 0 0 -15px;border:2px solid rgba(25,240,255,.75);border-radius:50%;display:none;pointer-events:none;z-index:4}#wx.on{border-color:#ff2a2a;box-shadow:0 0 12px #ff2a2a}#wx.hit{transform:scale(1.5);border-color:#fff}#we{position:fixed;left:50%;top:22%;transform:translateX(-50%);display:none;min-width:320px;max-width:92vw;background:rgba(0,0,0,.92);border:2px solid #ff2a2a;box-shadow:8px 8px 0 #fcee0a;color:#fff;font:600 1rem Rajdhani,sans-serif;letter-spacing:.12em;text-align:center;padding:1.2rem 1.6rem;z-index:6;pointer-events:none}#we b{display:block;font:900 1.6rem Orbitron,sans-serif;color:#fcee0a;letter-spacing:.2em;margin-bottom:.5rem}#we p{margin:.2rem 0}"; document.head.appendChild(st);
+  const mk = function (id) { const d = document.createElement('div'); d.id = id; document.body.appendChild(d); return d; };
+  const hud = mk('wh'), msg = mk('wm'), sub = mk('ws'), xh = mk('wx'), endc = mk('we');
+  const wb = document.createElement('div'); wb.id = 'war'; wb.textContent = 'DEFEND THE CITY  ·  IRON RAIN'; $('go').style.marginBottom = '.8rem'; $('go').insertAdjacentElement('afterend', wb);
+  let pending = false; wb.addEventListener('click', function () { pending = true; });
+  const tbs = [['KeyQ', 'Missile'], ['KeyC', 'Roll']].map(function (k) { const b = document.createElement('button'); b.className = 'tb'; b.dataset.k = k[0]; b.textContent = k[1]; b.style.display = 'none'; $('touch').appendChild(b); return b; });
+  // sound
+  let ac = null, nb = null;
+  const A = function () { if (!ac) { try { ac = new (window.AudioContext || window.webkitAudioContext)(); nb = ac.createBuffer(1, ac.sampleRate, ac.sampleRate); const d = nb.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = rnd() * 2 - 1; } catch (e) {} } return ac; };
+  const tone = function (f, d, type, v, f2) { const a = A(); if (!a) return; const o = a.createOscillator(), g = a.createGain(), t = a.currentTime; o.type = type; o.frequency.setValueAtTime(f, t); if (f2) o.frequency.exponentialRampToValueAtTime(f2, t + d); g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(0.0001, t + d); o.connect(g); g.connect(a.destination); o.start(t); o.stop(t + d + 0.05); };
+  const noise = function (d, v, fq) { const a = A(); if (!a || v < 0.004) return; const s = a.createBufferSource(), g = a.createGain(), f = a.createBiquadFilter(), t = a.currentTime; s.buffer = nb; f.type = 'lowpass'; f.frequency.setValueAtTime(fq, t); f.frequency.exponentialRampToValueAtTime(60, t + d); g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(0.0001, t + d); s.connect(f); f.connect(g); g.connect(a.destination); s.start(t); s.stop(t + d + 0.05); };
+  const glow = function (r, g, b) { return new THREE.MeshBasicMaterial({ color: new THREE.Color(r, g, b), fog: false }); };
+  const add = function (r, g, b, o) { return new THREE.MeshBasicMaterial({ color: new THREE.Color(r, g, b), transparent: true, opacity: o, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false }); };
+  const dark = glow(0.045, 0.045, 0.065), dark2 = glow(0.085, 0.075, 0.09);
+  // the Sovereign
+  const sov = new THREE.Group(); sov.visible = false; scene.add(sov);
+  (function () {
+    const red = glow(2.6, 0.15, 0.1), blu = glow(0.4, 1.6, 3), wht = glow(1.3, 1.2, 1.0);
+    const bx = function (sx, sy, sz, m, x, y, z) { const b = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), m); b.position.set(x, y, z); sov.add(b); };
+    bx(1300, 90, 170, dark, 0, 0, 0); bx(900, 50, 300, dark2, -80, -20, 0); bx(1200, 3, 172, red, 0, 32, 0); bx(60, 60, 110, blu, -662, 0, 0); bx(220, 110, 90, dark2, -300, 95, 0); bx(160, 6, 92, wht, -300, 120, 0); bx(260, 8, 130, red, 100, -48, 0);
+    for (const s of [-1, 1]) { bx(620, 46, 56, dark, 520, -10, s * 190); bx(260, 30, 120, dark2, 330, -10, s * 120); bx(300, 60, 70, dark, -560, 20, s * 150); bx(40, 44, 56, blu, -722, 20, s * 150); bx(600, 2, 57, red, 520, 14, s * 190); }
+    for (let k = 0; k < 40; k++) bx(8, 3, 172.6, wht, -600 + k * 30, -12 + (k % 3) * 13, 0);
+  })();
+  const bay = new V3();
+  // roofs by district
+  const ROOFZ = [[], [], [], [], [], [], []];
+  for (const b of B) { if (b.nc || b.rx || b.rz || b.sy < 50 || b.sx < 20 || b.sz < 20) continue; const z = ZI[zoneOf(b.x, b.z)]; if (z === undefined) continue; const top = b.y + b.sy / 2; if (top < 60 || top > 560 || b.y - b.sy / 2 > 2) continue; ROOFZ[z].push([b.x, top, b.z]); }
+  const pool = function (n, make) { const a = []; for (let i = 0; i < n; i++) { const o = make(i); o.on = false; o.p = o.g.position; o.g.visible = false; scene.add(o.g); a.push(o); } return a; };
+  const free = function (a) { for (const o of a) if (!o.on) return o; return null; };
+  const count = function (a) { let n = 0; for (const o of a) if (o.on) n++; return n; };
+  const fighter = function (hull, eng) { const g = ship.clone(true); g.traverse(function (o) { if (!o.isMesh || !o.material) return; const m = o.material.clone(); o.material = m; if (m.isMeshToonMaterial) m.color.setHex(hull); else if (m.isMeshBasicMaterial && m.color) { const k = Math.max(m.color.r, m.color.g, m.color.b); if (k > 0.9) m.color.copy(eng).multiplyScalar(k); } }); g.scale.setScalar(1.3); return g; };
+  const coneG = new THREE.ConeGeometry(3.2, 11, 8); coneG.rotateX(Math.PI / 2);
+  const trailG = new THREE.CylinderGeometry(2.8, 0.2, 70, 8, 1, true); trailG.rotateX(Math.PI / 2); trailG.translate(0, 0, -40);
+  const trailM = add(1.6, 0.55, 0.12, 0.55);
+  const pods = pool(isTouch ? 26 : 44, function () { const g = new THREE.Group(); g.add(new THREE.Mesh(coneG, dark2)); const tr = new THREE.Mesh(trailG, trailM); g.add(tr); const tip = new THREE.Mesh(new THREE.SphereGeometry(1.6, 8, 6), glow(3, 0.5, 0.15)); tip.position.z = 4; g.add(tip); g.scale.setScalar(1.8); return { kind: 'pod', g: g, v: new V3(), a: new V3(), b: new V3(), r: 12, tr: tr }; });
+  const walkers = pool(14, function () { const g = new THREE.Group(); const b = new THREE.Mesh(new THREE.BoxGeometry(7, 3, 9), dark2); b.position.y = 5; g.add(b); for (const x of [-3, 3]) for (const z of [-3.5, 3.5]) { const l = new THREE.Mesh(new THREE.BoxGeometry(1, 5, 1), dark); l.position.set(x, 2.5, z); g.add(l); } const e = new THREE.Mesh(new THREE.SphereGeometry(1.3, 8, 6), glow(3.2, 0.2, 0.1)); e.position.set(0, 5.4, 4.6); g.add(e); const c = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 7), dark); c.position.set(0, 7, 2); g.add(c); return { kind: 'walker', g: g, v: new V3(), r: 9 }; });
+  const ints = pool(8, function () { return { kind: 'int', g: fighter(0x4a0a12, new THREE.Color(1, 0.12, 0.06)), v: new V3(), dir: new V3(0, 0, 1), r: 8 }; });
+  const drops = pool(3, function () { const g = new THREE.Group(); g.add(new THREE.Mesh(new THREE.BoxGeometry(26, 9, 44), dark)); const w = new THREE.Mesh(new THREE.BoxGeometry(60, 2.5, 16), dark2); w.position.y = 3; g.add(w); for (const x of [-27, 27]) { const e = new THREE.Mesh(new THREE.CylinderGeometry(5, 5, 4, 12), glow(3, 0.4, 0.15)); e.position.set(x, 0.5, 0); g.add(e); } const s = new THREE.Mesh(new THREE.BoxGeometry(26.4, 1.2, 44.4), glow(2.4, 0.15, 0.1)); s.position.y = -2; g.add(s); return { kind: 'drop', g: g, v: new V3(), h: new V3(), r: 24 }; });
+  const allies = pool(isTouch ? 5 : 8, function () { return { g: fighter(0x1a4a6a, new THREE.Color(0.2, 1.0, 1.3)), v: new V3(), dir: new V3(0, 0, 1) }; });
+  const EN = pods.concat(walkers, ints, drops);
+  // turrets
+  const turrets = []; ROOFZ.forEach(function (rs, z) { for (let k = 0; k < (isTouch ? 5 : 10) && rs.length; k++) { const r = rs[Math.floor(rnd() * rs.length)], g = new THREE.Group(); g.position.set(r[0], r[1], r[2]); const b = new THREE.Mesh(new THREE.CylinderGeometry(3.4, 4.4, 4, 8), dark2); b.position.y = 2; g.add(b); const hd = new THREE.Group(); hd.position.y = 5; for (const x of [-1.2, 1.2]) { const br = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 9), dark); br.position.set(x, 0, 4); hd.add(br); } const l = new THREE.Mesh(new THREE.SphereGeometry(1, 8, 6), glow(0.3, 2.4, 2.8)); hd.add(l); g.add(hd); g.visible = false; scene.add(g); turrets.push({ g: g, hd: hd, z: z, p: new V3(r[0], r[1] + 5, r[2]), tgt: null, st: rnd() * 2, cd: rnd(), bt: 0 }); } });
+  // tracers
+  const TN = isTouch ? 260 : 520, tMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1.1, 1.1, 22), new THREE.MeshBasicMaterial({ fog: false }), TN), TR = [], tM = new THREE.Matrix4(), ONE = new V3(1, 1, 1), NIL = new V3(0, 0, 0), tq = new THREE.Quaternion();
+  const CC = { city: new THREE.Color(0.3, 2.4, 3), red: new THREE.Color(3.2, 0.3, 0.15), yel: new THREE.Color(3, 2.4, 0.4), me: new THREE.Color(1.2, 3, 3.2), big: new THREE.Color(3.4, 0.6, 0.2) };
+  for (let i = 0; i < TN; i++) { TR.push({ on: false, p: new V3(), v: new V3(), q: new THREE.Quaternion(), life: 0, own: 0, s: 1 }); tMesh.setColorAt(i, CC.city); tM.compose(NIL, tq, NIL); tMesh.setMatrixAt(i, tM); } tMesh.frustumCulled = false; tMesh.visible = false; scene.add(tMesh);
+  let ti = 0; const tracer = function (p, dir, spd, col, own, life, s) { const i = ti++ % TN, t = TR[i]; t.on = true; t.p.copy(p); t.v.copy(dir).multiplyScalar(spd); t.q.setFromUnitVectors(ZAX, dir); t.life = life; t.own = own; t.s = s || 1; tMesh.setColorAt(i, col); tMesh.instanceColor.needsUpdate = true; };
+  // missiles, explosions, fires, wrecks
+  const msl = pool(6, function () { const g = new THREE.Group(); const b = new THREE.Mesh(coneG, glow(1.5, 1.5, 1.6)); b.scale.setScalar(0.35); g.add(b); const t = new THREE.Mesh(trailG, add(0.5, 1.4, 1.6, 0.6)); t.scale.set(0.35, 0.35, 0.5); g.add(t); return { g: g, dir: new V3() }; });
+  const exG = new THREE.SphereGeometry(1, 14, 10), exs = pool(isTouch ? 26 : 48, function () { return { g: new THREE.Mesh(exG, add(2.2, 1.0, 0.25, 0.9)) }; });
+  const fireG = new THREE.ConeGeometry(7, 30, 8, 1, true); fireG.translate(0, 15, 0); const fires = pool(28, function () { return { g: new THREE.Mesh(fireG, add(1.8, 0.6, 0.1, 0.5)) }; }); let fi = 0;
+  const wrecks = pool(10, function () { const g = new THREE.Group(); g.add(new THREE.Mesh(trailG, trailM)); g.add(new THREE.Mesh(new THREE.SphereGeometry(2.4, 8, 6), glow(3, 1.2, 0.3))); return { g: g, v: new V3() }; });
+  const lance = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1, 10, 1, true), add(3, 0.5, 0.3, 0.8)); lance.visible = false; lance.frustumCulled = false; scene.add(lance);
+  const arrow = new THREE.Mesh(new THREE.ConeGeometry(1.1, 4, 4).rotateX(Math.PI / 2), glow(3, 0.3, 0.2)); arrow.visible = false; scene.add(arrow);
+  // state
+  const hp = [100, 100, 100, 100, 100, 100, 100], WV = [{ n: 'IRON RAIN', pods: 60, vol: [6, 10], gap: 2.4, ints: 6, mi: 4, drops: 1 }, { n: 'RAZOR WING', pods: 90, vol: [7, 11], gap: 2.2, ints: 14, mi: 6, drops: 2 }, { n: 'THE STORM', pods: 140, vol: [9, 14], gap: 1.9, ints: 24, mi: 8, drops: 3 }];
+  let on = false, phase = '', pT = 0, wave = 0, toPods = 0, toInts = 0, toDrops = 0, spT = 0, inT = 0, drT = 0, score = 0, combo = 0, comboT = 0, kills = 0, cityK = 0, shield = 100, hull = 100, hitT = 0, dead = 0, fireT = 0, gun = 1, mslT = 0, rollT = 0, rollCd = 0, rollDir = 1, lnT = 9, ln = null, bsT = 5, msgT = 0, subT = 0, hudT = 0, xhT = 0, over = '', qPrev = false, cPrev = false;
+  const say = function (t, s) { msg.textContent = t; msg.style.opacity = 1; msgT = s || 2.2; };
+  const radio = function (t) { sub.textContent = t; sub.style.opacity = 1; subT = 4.5; };
+  const boom = function (p, R) { const e = free(exs); if (e) { e.on = true; e.g.visible = true; e.p.copy(p); e.t = 0; e.R = R; } burst(p.clone(), tmp3.set(rnd() - 0.5, 1, rnd() - 0.5).normalize()); const d = p.distanceTo(P); noise(0.5 + R / 80, clamp(1 - d / 1600, 0, 1) * 0.16 * Math.min(1.6, R / 26), 900); if (d < 260) shake = Math.max(shake, 0.35 * (1 - d / 260)); };
+  const fire = function (x, y, z) { const f = fires[fi++ % fires.length]; f.on = true; f.g.visible = true; f.p.set(x, y, z); };
+  const wreck = function (e) { const w = free(wrecks); if (!w) return; w.on = true; w.g.visible = true; w.p.copy(e.p); w.v.copy(e.v).multiplyScalar(0.6); w.t = 0; };
+  const pickZone = function () { let s = 0; for (let i = 0; i < 7; i++) if (hp[i] > 0 && ROOFZ[i].length) s += ZW[i]; let r = rnd() * s; for (let i = 0; i < 7; i++) if (hp[i] > 0 && ROOFZ[i].length) { r -= ZW[i]; if (r <= 0) return i; } return 1; };
+  const hurtZone = function (z, d) { if (hp[z] <= 0) return; hp[z] -= d; if (hp[z] <= 0) { hp[z] = 0; say(ZN[z] + ' HAS GONE DARK', 3); radio('COMMAND: We have lost ' + ZN[z] + '. Power is out across the district.'); tone(180, 1.2, 'sawtooth', 0.09, 50); } };
+  const kill = function (e, mine) {
+    e.on = false; e.g.visible = false; boom(e.p, e.kind === 'drop' ? 70 : e.kind === 'pod' ? 26 : 24); if (e.kind !== 'walker') wreck(e);
+    if (!mine) { cityK++; return; }
+    kills++; combo++; comboT = 4.5; score += ({ pod: 100, walker: 200, int: 300, drop: 1200 })[e.kind] * (1 + Math.floor(combo / 4));
+    if (combo === 3) say('TRIPLE', 1.2); else if (combo === 6) say('IRON BREAKER', 1.5); else if (combo === 12) say('REAPER', 1.8); else if (e.kind === 'drop') say('DROPSHIP DOWN', 1.8);
+  };
+  const hit = function (e, d, mine) { if (!e.on) return; e.hp -= d; if (mine) { xh.className = 'hit'; xhT = 0.08; tone(1500, 0.04, 'square', 0.035); } if (e.hp <= 0) kill(e, mine); };
+  const damage = function (d) { if (rollT > 0 || dead > 0 || over) return; hitT = 4; if (shield > 0) { shield -= d; if (shield < 0) { hull += shield; shield = 0; } } else hull -= d; shake = Math.max(shake, 0.45); tone(110, 0.25, 'sawtooth', 0.09, 60); if (hull <= 0) { hull = 0; dead = 3; combo = 0; boom(P, 60); ship.visible = false; say('SHIP LOST', 2.5); radio('COMMAND: Pilot down! Scrambling a replacement from the Spire.'); } };
+  const spawnPod = function () { const o = free(pods); if (!o) return false; const z = pickZone(), r = ROOFZ[z][Math.floor(rnd() * ROOFZ[z].length)]; o.on = true; o.g.visible = true; o.hp = 2; o.z = z; o.a.copy(bay).add(tmp.set((rnd() - 0.5) * 240, 0, (rnd() - 0.5) * 110)); o.b.set(r[0], r[1], r[2]); o.t = -rnd() * 0.12; o.T = (9 + rnd() * 6) * (wave === 2 ? 0.85 : 1); o.w = rnd() * 6.28; o.p.copy(o.a); return true; };
+  const begin = function () {
+    on = true; over = ''; phase = 'arrive'; pT = 9; wave = 0; score = 0; combo = 0; kills = 0; cityK = 0; shield = 100; hull = 100; dead = 0; mslT = 0; rollT = 0; rollCd = 0; lnT = 12; ln = null; bsT = 6; toPods = toInts = toDrops = 0;
+    for (let i = 0; i < 7; i++) hp[i] = 100; for (const a of [EN, allies, msl, exs, fires, wrecks]) for (const o of a) { o.on = false; o.g.visible = false; } for (const t of TR) t.on = false;
+    for (const t of turrets) t.g.visible = true; allies.forEach(function (a, i) { a.on = true; a.g.visible = true; a.p.set((rnd() - 0.5) * 600, 520 + i * 25, (rnd() - 0.5) * 600); a.dir.set(rnd() - 0.5, 0, rnd() - 0.5).normalize(); a.tgt = null; a.cd = rnd() * 2; a.rs = 0; });
+    sov.visible = true; sov.position.set(0, 3600, 520); tMesh.visible = true; ALERT.value = 1; hud.style.display = 'block'; xh.style.display = 'block'; endc.style.display = 'none'; ship.visible = true; for (const b of tbs) b.style.display = isTouch ? 'block' : 'none';
+    say('ORBITAL CONTACT', 3); radio('COMMAND: Republic dreadnought SOVEREIGN is dropping into low orbit. All turrets, weapons free. Pilot, the sky is yours.'); for (let k = 0; k < 4; k++) setTimeout(function () { tone(330, 0.9, 'sawtooth', 0.07, 660); }, k * 1000);
+  };
+  const exit = function () { on = false; over = ''; for (const a of [EN, allies, msl, exs, fires, wrecks]) for (const o of a) { o.on = false; o.g.visible = false; } for (const t of turrets) t.g.visible = false; sov.visible = false; tMesh.visible = false; lance.visible = false; arrow.visible = false; ALERT.value = 0; hud.style.display = xh.style.display = endc.style.display = 'none'; msg.style.opacity = sub.style.opacity = 0; ship.visible = true; for (const b of tbs) b.style.display = 'none'; const u = bMat.uniforms.uPow.value; for (let i = 0; i < 7; i++) u[i] = 1; };
+  const startWave = function (i) { wave = i; const w = WV[i]; toPods = w.pods; toInts = w.ints; toDrops = w.drops; spT = 1; inT = 4; drT = 10; phase = 'wave'; say('WAVE ' + (i + 1) + '  ·  ' + w.n, 3); radio(['COMMAND: Iron Rain inbound! Drop pods in the air. Kill them before they land.', 'COMMAND: Razor interceptors launching. Watch your six, they hunt in packs.', 'COMMAND: They are throwing everything at us. Dropships between the towers. Hold the line!'][i]); tone(220, 0.8, 'square', 0.07, 440); };
+  const finish = function (won) { over = won ? 'won' : 'lost'; phase = 'over'; const alive = hp.filter(function (h) { return h > 0; }).length, total = score + (won ? alive * 1500 : 0), g = !won ? 'F' : alive >= 7 ? 'S' : alive >= 6 ? 'A' : alive >= 5 ? 'B' : 'C'; let best = 0; try { best = +localStorage.getItem('vv_war') || 0; if (total > best) localStorage.setItem('vv_war', total); } catch (e) {}
+    endc.innerHTML = '<b>' + (won ? 'THE SOVEREIGN WITHDRAWS' : 'VAID CITY HAS FALLEN') + '</b><p>GRADE ' + g + '  ·  SCORE ' + total.toLocaleString() + (total > best ? '  ·  NEW BEST' : '') + '</p><p>YOUR KILLS ' + kills + '  ·  CITY KILLS ' + cityK + '</p><p>DISTRICTS STANDING ' + alive + ' / 7</p><p style="opacity:.6;font-size:.8rem;margin-top:.6rem">' + (isTouch ? 'RELOAD TO PLAY AGAIN' : 'R FIGHT AGAIN  ·  B RETURN TO THE CITY') + '</p>'; endc.style.display = 'block';
+    if (won) { radio('COMMAND: She is pulling back to orbit! The city stands. Outstanding flying, pilot.'); [523, 659, 784, 1047].forEach(function (f, k) { setTimeout(function () { tone(f, 0.3, 'triangle', 0.08); }, k * 140); }); } else radio('COMMAND: ...all units, fall back. The city is lost.'); };
+  addEventListener('keydown', function (e) { if (!started || e.repeat) return; if (e.code === 'KeyB') { if (on) exit(); else begin(); } else if (e.code === 'KeyR' && on && over) begin(); });
+  const fwd = new V3(), side = new V3();
+  const steer = function (o, tp, rate, spd, dt, floor) { tmp.copy(tp).sub(o.p).normalize(); o.dir.lerp(tmp, Math.min(1, rate * dt)).normalize(); if (o.p.y < floor && o.dir.y < 0.25) { o.dir.y += dt * 2; o.dir.normalize(); } o.p.addScaledVector(o.dir, spd * dt); o.v.copy(o.dir).multiplyScalar(spd); o.g.lookAt(tmp.copy(o.p).sub(o.dir)); };
+  return {
+    on: function () { return on; }, begin: begin, exit: exit,
+    update: function (dt) {
+      if (pending && started) { pending = false; if (!on) begin(); }
+      if (msgT > 0) { msgT -= dt; if (msgT <= 0) msg.style.opacity = 0; } if (subT > 0) { subT -= dt; if (subT <= 0) sub.style.opacity = 0; }
+      if (!on) return;
+      fwd.set(-Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch)); side.set(Math.cos(yaw), 0, -Math.sin(yaw));
+      bay.copy(sov.position); bay.x += 100; bay.y -= 60;
+      // phases
+      if (phase === 'arrive') { pT -= dt; sov.position.y = 1500 + 2100 * Math.pow(Math.max(pT, 0) / 9, 2); if (pT <= 0) startWave(0); }
+      else if (phase === 'break') { pT -= dt; if (pT <= 0) startWave(wave + 1); }
+      else if (phase === 'wave') {
+        const w = WV[wave];
+        spT -= dt; if (toPods > 0 && spT <= 0) { spT = w.gap; let n = w.vol[0] + Math.floor(rnd() * (w.vol[1] - w.vol[0] + 1)); for (; n > 0 && toPods > 0; n--) if (spawnPod()) toPods--; tone(90, 0.6, 'sawtooth', 0.05, 40); }
+        inT -= dt; if (toInts > 0 && inT <= 0 && count(ints) < w.mi) { const o = free(ints); if (o) { toInts--; inT = 2.2; o.on = true; o.g.visible = true; o.hp = 3; o.p.copy(bay).add(tmp.set((rnd() - 0.5) * 300, -40, (rnd() - 0.5) * 100)); o.dir.set(rnd() - 0.5, -0.8, rnd() - 0.5).normalize(); o.cd = 2; o.bn = 0; o.tgt = rnd() < 0.6 ? null : allies[Math.floor(rnd() * allies.length)]; } }
+        drT -= dt; if (toDrops > 0 && drT <= 0) { const o = free(drops); if (o) { toDrops--; drT = 22; const z = pickZone(), r = ROOFZ[z][Math.floor(rnd() * ROOFZ[z].length)]; o.on = true; o.g.visible = true; o.hp = 18; o.z = z; o.p.copy(bay); o.h.set(r[0], Math.max(r[1] + 70, 190), r[2]); o.cd = 0; say('DROPSHIP INBOUND', 2); radio('COMMAND: Dropship heading for ' + ZN[z] + '. It will shred that district. Take it down!'); } }
+        if (!toPods && !toInts && !toDrops && !count(EN)) { if (wave >= WV.length - 1) finish(true); else { phase = 'break'; pT = 7; score += 1000; say('WAVE CLEAR', 2.5); radio('COMMAND: Wave broken. Catch your breath, more are coming.'); } }
+        bsT -= dt; if (bsT <= 0) { bsT = 4 + rnd() * 4; for (let k = 0; k < 7; k++) { const z = pickZone(), r = ROOFZ[z][Math.floor(rnd() * ROOFZ[z].length)]; tmp.set(sov.position.x - 500 + k * 170, sov.position.y - 30, sov.position.z + (k % 2 ? 90 : -90)); tmp2.set(r[0], r[1], r[2]).sub(tmp).normalize(); tracer(tmp, tmp2, 520, CC.big, 3, 6, 3); } noise(0.9, 0.05, 300); }
+        lnT -= dt; if (lnT <= 0 && !ln) { const z = pickZone(), r = ROOFZ[z][Math.floor(rnd() * ROOFZ[z].length)]; ln = { t: 0, b: new V3(r[0], r[1], r[2]), z: z }; lnT = 9 + rnd() * 7; tone(900, 1.1, 'sine', 0.05, 200); }
+      }
+      if (ln) { ln.t += dt; const fat = ln.t > 1.1, len = bay.distanceTo(ln.b); lance.visible = true; lance.position.copy(bay).add(ln.b).multiplyScalar(0.5); lance.quaternion.setFromUnitVectors(tmp.set(0, 1, 0), tmp2.copy(ln.b).sub(bay).normalize()); const r = fat ? 7 + Math.sin(time * 60) * 2 : 0.6; lance.scale.set(r, len, r); if (fat && !ln.hit) { ln.hit = true; boom(ln.b, 80); fire(ln.b.x, ln.b.y, ln.b.z); hurtZone(ln.z, 3); } if (ln.t > 1.7) { ln = null; lance.visible = false; } }
+      // pods
+      for (const o of pods) { if (!o.on) continue; o.t += dt / o.T; const u = Math.pow(Math.max(o.t, 0), 1.7); tmp.copy(o.p); o.p.lerpVectors(o.a, o.b, u); o.p.x += Math.sin(o.t * 5 + o.w) * 40 * (1 - u); o.p.z += Math.cos(o.t * 4 + o.w) * 40 * (1 - u); o.v.copy(o.p).sub(tmp).divideScalar(Math.max(dt, 0.001)); o.g.lookAt(o.b); o.tr.scale.z = 0.7 + rnd() * 0.6;
+        if (o.t >= 1) { o.on = false; o.g.visible = false; boom(o.b, 34); fire(o.b.x, o.b.y, o.b.z); hurtZone(o.z, 1.5); const wk = free(walkers); if (wk && hp[o.z] > 0) { wk.on = true; wk.g.visible = true; wk.hp = 6; wk.z = o.z; wk.p.copy(o.b); wk.ft = rnd(); wk.g.rotation.y = rnd() * 6.28; } } }
+      for (const o of walkers) { if (!o.on) continue; hurtZone(o.z, 0.35 * dt); o.g.position.y += Math.sin(time * 6 + o.ft * 9) * 0.02; o.g.rotation.y += dt * 0.5; o.ft -= dt; if (o.ft <= 0) { o.ft = 0.5 + rnd() * 0.6; tmp.set(Math.sin(o.g.rotation.y), 0.25 + rnd() * 0.5, Math.cos(o.g.rotation.y)).normalize(); tracer(tmp2.copy(o.p).setY(o.p.y + 7), tmp, 300, CC.red, 0, 2.2); } if (hp[o.z] <= 0) { o.on = false; o.g.visible = false; } }
+      // interceptors
+      for (const o of ints) { if (!o.on) continue; const ta = o.tgt && o.tgt.on ? o.tgt : null, tp = ta ? ta.p : P, d = o.p.distanceTo(tp);
+        if (d > 170) { tmp2.copy(tp); if (!ta) tmp2.addScaledVector(V, 0.4); tmp2.x += Math.sin(time * 0.7 + o.r + o.cd) * 90; tmp2.y += 30; steer(o, tmp2, 1.5, 200, dt, 150); } else { tmp2.copy(o.p).addScaledVector(o.dir, 100); steer(o, tmp2, 1, 220, dt, 150); }
+        o.cd -= dt; tmp.copy(tp).sub(o.p).normalize(); if (o.cd <= 0 && d < 700 && tmp.dot(o.dir) > 0.94) { o.cd = o.bn < 4 ? 0.09 : 1.4; o.bn = o.bn < 4 ? o.bn + 1 : 0; if (!ta) tmp.copy(P).addScaledVector(V, d / 520).sub(o.p).normalize(); tmp.x += (rnd() - 0.5) * 0.03; tmp.y += (rnd() - 0.5) * 0.03; tmp.normalize(); tracer(o.p, tmp, 520, CC.red, ta ? 0 : 1, 2); if (ta && rnd() < 0.03) { ta.on = false; ta.g.visible = false; ta.rs = 8; boom(ta.p, 24); wreck(ta); o.tgt = null; } }
+        if (!ta && o.tgt) o.tgt = null; }
+      // dropships
+      for (const o of drops) { if (!o.on) continue; tmp.copy(o.h).sub(o.p); const d = tmp.length(); if (d > 6) { tmp.normalize(); o.p.addScaledVector(tmp, Math.min(d, 110 * dt)); o.v.copy(tmp).multiplyScalar(110); } else { o.v.set(0, 0, 0); hurtZone(o.z, 0.9 * dt); o.cd -= dt; if (o.cd <= 0) { o.cd = 0.07; tmp.set((rnd() - 0.5) * 1.2, -1, (rnd() - 0.5) * 1.2).normalize(); tracer(tmp2.copy(o.p).setY(o.p.y - 6), tmp, 260, CC.red, 0, 0.9); if (rnd() < 0.04) fire(o.p.x + (rnd() - 0.5) * 80, o.h.y - 70, o.p.z + (rnd() - 0.5) * 80); } } o.g.rotation.y += dt * 0.25; o.g.position.y += Math.sin(time * 1.3) * 0.03; if (hp[o.z] <= 0 && d <= 6) { const z = pickZone(), r = ROOFZ[z][Math.floor(rnd() * ROOFZ[z].length)]; o.z = z; o.h.set(r[0], Math.max(r[1] + 70, 190), r[2]); } }
+      // allied fighters
+      for (const a of allies) { if (!a.on) { a.rs -= dt; if (a.rs <= 0 && !over) { a.on = true; a.g.visible = true; a.p.set(0, 700, 0); a.dir.set(rnd() - 0.5, 0, rnd() - 0.5).normalize(); a.tgt = null; } continue; }
+        if (!a.tgt || !a.tgt.on) { a.tgt = null; let bd = 1e9; for (const e of EN) if (e.on && e.kind !== 'walker') { const d = e.p.distanceTo(a.p) * (0.5 + rnd()); if (d < bd) { bd = d; a.tgt = e; } } }
+        if (a.tgt) { const d = a.p.distanceTo(a.tgt.p); if (d > 120) steer(a, a.tgt.p, 1.6, 210, dt, 170); else { tmp2.copy(a.p).addScaledVector(a.dir, 100); steer(a, tmp2, 1, 210, dt, 170); } a.cd -= dt; tmp.copy(a.tgt.p).sub(a.p).normalize(); if (a.cd <= 0 && d < 600 && tmp.dot(a.dir) > 0.93) { a.cd = 0.1; tracer(a.p, tmp, 600, CC.city, 0, 1.2); if (rnd() < 0.035) hit(a.tgt, 1, false); } }
+        else { tmp2.set(Math.sin(time * 0.2 + a.rs) * 500, 520, Math.cos(time * 0.2 + a.rs) * 500); steer(a, tmp2, 1, 180, dt, 170); } }
+      // turrets
+      for (const t of turrets) { if (hp[t.z] <= 0) { t.g.visible = false; continue; } t.st -= dt; if (t.st <= 0) { t.st = 0.6; t.tgt = null; let bd = 950; for (const e of EN) if (e.on && e.kind !== 'walker') { const d = e.p.distanceTo(t.p); if (d < bd) { bd = d; t.tgt = e; } } }
+        const e = t.tgt && t.tgt.on ? t.tgt : null; if (e) tmp.copy(e.p).addScaledVector(e.v, e.p.distanceTo(t.p) / 700).sub(t.p).normalize(); else tmp.set(Math.sin(time * 0.5 + t.p.x), 1.2, Math.cos(time * 0.4 + t.p.z)).normalize(); t.hd.lookAt(tmp2.copy(t.p).add(tmp));
+        t.cd -= dt; if (t.cd <= 0) { if (t.bt < (e ? 16 : 7)) { t.bt++; t.cd = 0.085; tmp.x += (rnd() - 0.5) * 0.05; tmp.y += (rnd() - 0.5) * 0.05; tmp.z += (rnd() - 0.5) * 0.05; tmp.normalize(); tracer(t.p, tmp, 700, CC.yel, 0, e ? 1.5 : 1.1); } else { t.bt = 0; t.cd = e ? 0.3 : 0.6 + rnd() * 1.2; if (e) { const x = free(exs); if (x) { x.on = true; x.g.visible = true; x.p.copy(e.p).add(tmp2.set((rnd() - 0.5) * 40, (rnd() - 0.5) * 40, (rnd() - 0.5) * 40)); x.t = 0; x.R = 10; } if (rnd() < 0.2) hit(e, 1, false); } } } }
+      // player
+      if (dead > 0) { dead -= dt; speed = Math.min(speed, 2); V.multiplyScalar(0.9); if (dead <= 0) { P.set(0, 560, -520); V.set(0, 0, 0); yaw = Math.PI; pitch = 0; ship.visible = true; shield = 100; hull = 100; rollT = 1; } }
+      else if (!over) {
+        hitT -= dt; if (hitT <= 0) shield = Math.min(100, shield + 22 * dt);
+        let best = null, bd = 0.985; for (const e of EN) { if (!e.on) continue; tmp.copy(e.p).sub(P); const L = tmp.length(); if (L > 1400) continue; const dd = tmp.dot(fwd) / L; if (dd > bd) { bd = dd; best = e; } } xhT -= dt; if (xhT <= 0) xh.className = best ? 'on' : '';
+        fireT -= dt; if ((keys.KeyF || mouseDown || (isTouch && keys.KeyE)) && fireT <= 0) { fireT = 0.085; gun = -gun; tmp2.copy(P).addScaledVector(side, gun * 3).addScaledVector(fwd, 5); if (best) tmp.copy(best.p).addScaledVector(best.v, best.p.distanceTo(P) / 1100).sub(tmp2).normalize(); else tmp.copy(fwd); tracer(tmp2, tmp, 1100, CC.me, 2, 1.3); tone(880, 0.05, 'square', 0.02, 420); }
+        mslT -= dt; const q = !!keys.KeyQ; if (q && !qPrev && mslT <= 0) { const ts = []; for (const e of EN) { if (!e.on) continue; tmp.copy(e.p).sub(P); const L = tmp.length(); if (L < 1700 && tmp.dot(fwd) / L > 0.72) ts.push([L * (e.kind === 'drop' ? 0.3 : 1), e]); } ts.sort(function (a, b) { return a[0] - b[0]; }); if (ts.length) { mslT = 6; for (let k = 0; k < 4; k++) { const m = free(msl); if (!m) break; m.on = true; m.g.visible = true; m.p.copy(P).addScaledVector(side, (k - 1.5) * 3); m.dir.copy(fwd).addScaledVector(side, (k - 1.5) * 0.25).normalize(); m.tgt = ts[k % ts.length][1]; m.t = 0; } noise(0.7, 0.07, 2400); } else tone(160, 0.12, 'square', 0.04); } qPrev = q;
+        rollCd -= dt; const c = !!keys.KeyC; if (c && !cPrev && rollCd <= 0) { rollT = 0.45; rollCd = 2; rollDir = keys.KeyA || keys.ArrowLeft ? -1 : keys.KeyD || keys.ArrowRight ? 1 : -rollDir; noise(0.3, 0.05, 3000); } cPrev = c;
+      }
+      if (rollT > 0) { rollT -= dt; if (rollT < 0.45) { P.addScaledVector(side, rollDir * 80 * dt); ship.rotateZ(-rollDir * (1 - Math.max(rollT, 0) / 0.45) * 6.283); } }
+      for (const m of msl) { if (!m.on) continue; m.t += dt; if (m.tgt && m.tgt.on) { tmp.copy(m.tgt.p).sub(m.p).normalize(); m.dir.lerp(tmp, Math.min(1, 4 * dt)).normalize(); if (m.p.distanceTo(m.tgt.p) < m.tgt.r + 6) { hit(m.tgt, 6, true); boom(m.p, 18); m.on = false; m.g.visible = false; continue; } } m.p.addScaledVector(m.dir, 440 * dt); m.g.lookAt(tmp.copy(m.p).add(m.dir)); if (m.t > 6) { m.on = false; m.g.visible = false; } }
+      // tracers
+      for (let i = 0; i < TN; i++) { const t = TR[i]; if (!t.on) continue; t.life -= dt; t.p.addScaledVector(t.v, dt);
+        if (t.own === 1) { if (dead <= 0 && t.p.distanceTo(P) < 6) { damage(7); t.life = 0; } }
+        else if (t.own === 2) { for (const e of EN) if (e.on && (t.p.distanceTo(e.p) < e.r || tmp.copy(t.p).addScaledVector(t.v, -dt * 0.5).distanceTo(e.p) < e.r)) { hit(e, 1, true); t.life = 0; break; } }
+        else if (t.own === 3 && t.p.y < 60) { boom(t.p, 40); fire(t.p.x, Math.max(t.p.y, 4), t.p.z); const z = ZI[zoneOf(t.p.x, t.p.z)]; if (z !== undefined) hurtZone(z, 0.8); t.life = 0; }
+        if (t.life <= 0) { t.on = false; tM.compose(NIL, tq, NIL); } else tM.compose(t.p, t.q, tmp.set(t.s, t.s, t.s)); tMesh.setMatrixAt(i, tM); }
+      tMesh.instanceMatrix.needsUpdate = true;
+      for (const e of exs) { if (!e.on) continue; e.t += dt * 2.2; const s = e.R * (0.3 + 0.7 * Math.min(1, e.t * 1.6)); e.g.scale.setScalar(s); e.g.material.opacity = Math.max(0, 0.9 * (1 - e.t)); if (e.t >= 1) { e.on = false; e.g.visible = false; } }
+      for (const f of fires) if (f.on) { const s = 0.7 + rnd() * 0.6; f.g.scale.set(s, 0.7 + rnd() * 0.7, s); }
+      for (const w of wrecks) { if (!w.on) continue; w.t += dt; w.v.y -= 60 * dt; w.p.addScaledVector(w.v, dt); w.g.lookAt(tmp.copy(w.p).add(w.v)); if (w.p.y < 8 || w.t > 6) { w.on = false; w.g.visible = false; boom(w.p, 30); fire(w.p.x, Math.max(w.p.y, 2), w.p.z); } }
+      if (comboT > 0) { comboT -= dt; if (comboT <= 0) combo = 0; }
+      const u = bMat.uniforms.uPow.value; for (let i = 0; i < 7; i++) u[i] = hp[i] <= 0 ? 0.03 : (0.3 + 0.7 * hp[i] / 100) * (hp[i] < 60 && rnd() < 0.06 ? 0.4 : 1);
+      if (!over && phase !== 'arrive' && (hp[1] <= 0 || hp.filter(function (h) { return h <= 0; }).length >= 4)) finish(false);
+      const left = count(EN); let near = null, nd = 1e9; if (left && left <= 5 && phase === 'wave' && !toPods) for (const e of EN) if (e.on) { const d = e.p.distanceTo(P); if (d < nd) { nd = d; near = e; } } arrow.visible = !!near; if (near) { arrow.position.copy(P); arrow.position.y += 7; arrow.lookAt(near.p); }
+      hudT -= dt; if (hudT <= 0) { hudT = 0.12; const bar = function (v) { return '<s><u style="width:' + Math.round(clamp(v, 0, 1) * 100) + '%"></u></s>'; }; let h = '<div class="tp"><b>' + (phase === 'arrive' ? 'THE SOVEREIGN IS DESCENDING' : over ? 'BATTLE OVER' : 'WAVE ' + (wave + 1) + ' / ' + WV.length + '  ·  ' + WV[wave].n) + '</b>HOSTILES ' + (left + toPods + toInts + toDrops) + '  ·  SCORE ' + score.toLocaleString() + (combo > 1 ? '  ·  <i>COMBO x' + combo + '</i>' : '') + '</div><div class="ds">'; for (let i = 0; i < 7; i++) h += '<div style="color:' + (hp[i] <= 0 ? '#666' : hp[i] < 40 ? '#ff2a2a' : '#fcee0a') + '"><span>' + ZN[i] + '</span>' + bar(hp[i] / 100) + '</div>'; h += '</div><div class="pl"><span style="color:#19f0ff">SHIELD' + bar(shield / 100) + '</span><span style="color:' + (hull < 35 ? '#ff2a2a' : '#7dff3a') + '">HULL' + bar(hull / 100) + '</span>' + (mslT <= 0 ? 'MISSILES READY' : 'MISSILES ' + mslT.toFixed(1)) + (isTouch ? '' : '  ·  CLICK/F FIRE · Q MISSILES · C ROLL') + '</div>'; hud.innerHTML = h; }
+    }
   };
 })();
 
@@ -1273,7 +1436,7 @@ function update(dt) {
   for (let i = 0; i < sparks.n; i++) { const s = sparks.v[i]; if (s.life <= 0) continue; s.life -= dt; sparks.pos[i * 3] += s.v.x * dt; sparks.pos[i * 3 + 1] += s.v.y * dt; sparks.pos[i * 3 + 2] += s.v.z * dt; s.v.y -= 30 * dt; if (s.life <= 0) sparks.pos[i * 3 + 1] = -999; }
   sparks.g.attributes.position.needsUpdate = true;
   // world fx
-  life(dt, boost); rave(dt); bays(dt);
+  life(dt, boost); rave(dt); bays(dt); WAR.update(dt);
   for (let i = 0; i < rings.length; i++) { rings[i].rotation.z += dt * (i % 2 ? -0.25 : 0.2); rings[i].rotation.x = Math.PI / 2 + Math.sin(time * 0.3 + i) * 0.12; }
   for (let i = 0; i < climbers.length; i++) climbers[i].position.set(0, 950 + ((time * 160 + i * 1100) % 4400), 0);
   for (const b of boards) b.m.material.opacity = 0.9 + Math.sin(time * 21 + b.p.x) * 0.05;
